@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="fill_parent"
+    android:layout_height="?android:attr/listPreferredItemHeight"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:background="@android:color/transparent"
+    
+    
+    android:paddingRight="4dip">
+    <View
+        android:id="@+id/chip"
+        android:background="@drawable/appointment_indicator_leftside_1"
+        android:layout_width="4dip"
+        android:layout_height="fill_parent"
+        android:layout_centerVertical="true"
+        android:layout_alignParentLeft="true"
+    />
+    <LinearLayout
+        android:layout_width="0dip"
+        android:layout_height="fill_parent"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:gravity="center_vertical"
+        android:paddingLeft="6dip">
+        <TextView
+            android:id="@+id/folder_name"
+            android:textAppearance="?android:attr/textAppearanceLarge"
+            android:textColor="?android:attr/textColorPrimary"
+            android:layout_width="fill_parent"
+            android:singleLine="true"
+            android:ellipsize="end"
+            android:layout_height="wrap_content" />
+        <TextView
+            android:id="@+id/folder_status"
+            android:textAppearance="?android:attr/textAppearanceSmall"
+            android:textColor="?android:attr/textColorTertiary"
+            android:layout_width="fill_parent"
+            android:singleLine="true"
+            android:ellipsize="end"
+            android:layout_height="wrap_content" />
+    </LinearLayout>
+    <TextView
+        android:id="@+id/folder_unread_message_count"
+        android:ellipsize="end"
+        android:singleLine="true"
+        android:textAppearance="?android:attr/textAppearanceLarge"
+        android:textColor="?android:attr/textColorPrimary"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:background="@drawable/text_box"
+        android:paddingLeft="10dip"
+        android:paddingRight="10dip"
+        android:minWidth="64dip"
+        android:gravity="right" />
+</LinearLayout>
