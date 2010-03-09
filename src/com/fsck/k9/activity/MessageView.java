@@ -1253,11 +1253,12 @@ public class MessageView extends K9Activity
         String contentType = MimeUtility.unfoldAndDecode(part.getContentType());
         String contentDisposition = MimeUtility.unfoldAndDecode(part.getDisposition());
         String name = MimeUtility.getHeaderParameter(contentType, "name");
+        String contentId = MimeUtility.getHeaderParameter(part.getContentId(), null);
         if (name == null)
         {
             name = MimeUtility.getHeaderParameter(contentDisposition, "filename");
         }
-        if (name != null)
+        if (name != null && contentId == null)
         {
             /*
              * We're guaranteed size because LocalStore.fetch puts it there.
@@ -1465,7 +1466,7 @@ public class MessageView extends K9Activity
                             mMessageContentView.loadDataWithBaseURL("email://", emailText, "text/html", "utf-8", null);
                         }
                     });
-                    mHandler.showShowPictures(text.contains("<img"));
+                    // mHandler.showShowPictures(text.contains("<img"));
                 }
                 else
                 {

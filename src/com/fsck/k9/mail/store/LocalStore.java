@@ -34,7 +34,7 @@ import java.util.regex.Matcher;
  */
 public class LocalStore extends Store implements Serializable
 {
-    private static final int DB_VERSION = 33;
+    private static final int DB_VERSION = 133; // added 100 for Original version number by Koji Arai
     private static final Flag[] PERMANENT_FLAGS = { Flag.DELETED, Flag.X_DESTROYED, Flag.SEEN };
 
     private String mPath;
@@ -145,7 +145,7 @@ public class LocalStore extends Store implements Serializable
                 mDb.execSQL("CREATE INDEX IF NOT EXISTS msg_folder_id_deleted_date ON messages (folder_id,deleted,internal_date)");
                 mDb.execSQL("DROP TABLE IF EXISTS attachments");
                 mDb.execSQL("CREATE TABLE attachments (id INTEGER PRIMARY KEY, message_id INTEGER,"
-                            + "store_data TEXT, content_uri TEXT, size INTEGER, name TEXT,"
+                            + "store_data TEXT, content_uri TEXT, content_id TEXT, size INTEGER, name TEXT,"
                             + "mime_type TEXT)");
 
                 mDb.execSQL("DROP TABLE IF EXISTS pending_commands");
@@ -203,6 +203,20 @@ public class LocalStore extends Store implements Serializable
                 }
 
 
+            }
+            if (mDb.getVersion() < 133)
+            {
+                try
+                {
+                    mDb.execSQL("ALTER TABLE attachments ADD content_id TEXT");
+                }
+                catch (SQLiteException e)
+                {
+                    if (! e.toString().contains("duplicate column name: content_id"))
+                    {
+                        throw e;
+                    }
+                }
             }
 
         }
@@ -1193,7 +1207,8 @@ public class LocalStore extends Store implements Serializable
                                          "name",
                                          "mime_type",
                                          "store_data",
-                                         "content_uri"
+                                         "content_uri",
+                                         "content_id"
                                      },
                                      "message_id = ?",
                                      new String[] { Long.toString(localMessage.mId) },
@@ -1209,6 +1224,7 @@ public class LocalStore extends Store implements Serializable
                             String type = cursor.getString(3);
                             String storeData = cursor.getString(4);
                             String contentUri = cursor.getString(5);
+                            String contentId = cursor.getString(6);
                             Body body = null;
                             if (contentUri != null)
                             {
@@ -1224,6 +1240,10 @@ public class LocalStore extends Store implements Serializable
                                          String.format("attachment;\n filename=\"%s\";\n size=%d",
                                                        name,
                                                        size));
+                            if (contentId != null) {
+                                bp.setHeader(MimeHeader.HEADER_CONTENT_ID,
+                                             String.format("<%s>", contentId));
+                            }
 
                             /*
                              * HEADER_ANDROID_ATTACHMENT_STORE_DATA is a custom header we add to that
@@ -1783,7 +1803,7 @@ public class LocalStore extends Store implements Serializable
                 ContentValues cv = new ContentValues();
                 cv.put("message_id", messageId);
                 cv.put("content_uri", contentUri != null ? contentUri.toString() : null);
-                // cv.put("content_id", contentId != null ? contentId.toString() : null);
+                cv.put("content_id", contentId != null ? contentId.toString() : null);
                 cv.put("store_data", storeData);
                 cv.put("size", size);
                 cv.put("name", name);
