@@ -40,6 +40,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 public class MessageView extends K9Activity
         implements UrlInterceptHandler, OnClickListener
@@ -97,6 +98,7 @@ public class MessageView extends K9Activity
     private Listener mListener = new Listener();
     private MessageViewHandler mHandler = new MessageViewHandler();
 
+    private static final Pattern IMGTAG_PATTERN = Pattern.compile("(?i)<img.*?src=\"http");
 
     @Override
     public boolean dispatchKeyEvent(KeyEvent event)
@@ -1465,7 +1467,7 @@ public class MessageView extends K9Activity
                             mMessageContentView.loadDataWithBaseURL("email://", emailText, "text/html", "utf-8", null);
                         }
                     });
-                    mHandler.showShowPictures(text.contains("<img"));
+                    mHandler.showShowPictures(IMGTAG_PATTERN.matcher(text).find());
                 }
                 else
                 {
