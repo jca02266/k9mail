@@ -45,6 +45,7 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 public class MessageView extends K9Activity implements OnClickListener
 {
@@ -100,6 +101,8 @@ public class MessageView extends K9Activity implements OnClickListener
 
     private FontSizes mFontSizes = K9.getFontSizes();
 
+    private static final Pattern IMGTAG_PATTERN = Pattern.compile("(?i)<img.*?src=\"http");
+
     /**
      * Pair class is only available since API Level 5, so we need
      * this helper class unfortunately
@@ -115,7 +118,6 @@ public class MessageView extends K9Activity implements OnClickListener
             this.value = value;
         }
     }
-
 
     @Override
     public boolean dispatchKeyEvent(KeyEvent event)
@@ -1654,7 +1656,7 @@ public class MessageView extends K9Activity implements OnClickListener
                             mMessageContentView.loadDataWithBaseURL("email://", emailText, "text/html", "utf-8", null);
                         }
                     });
-                    mHandler.showShowPictures(text.contains("<img"));
+                    mHandler.showShowPictures(IMGTAG_PATTERN.matcher(text).find());
                 }
                 else
                 {
