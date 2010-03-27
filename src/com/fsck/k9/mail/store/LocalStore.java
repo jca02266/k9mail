@@ -1820,6 +1820,8 @@ public class LocalStore extends Store implements Serializable
                     new String[] { Long.toString(attachmentId) });
             }
 
+            /* The message has attachment with Content-ID */
+            if (contentId != null && contentUri != null)
             {
                 Cursor cursor = null;
                 cursor = mDb.query("messages", new String[] { "html_content" }, "id = ?", new String[] { Long.toString(messageId) }, null, null, null);
