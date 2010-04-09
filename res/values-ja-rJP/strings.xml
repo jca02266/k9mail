@@ -90,7 +90,7 @@
 
     <string name="mark_as_unread_action">マークを未読へ</string>
     <string name="move_to_action">移動先</string>
-    <string name="folders_action">フォルダー</string>
+    <string name="folders_action">フォルダ</string>
     <string name="view_hide_details_action">詳細の表示/非表示</string>
     <string name="add_cc_bcc_action">Cc/Bcc追加</string>
     <string name="edit_subject_action">件名編集</string>
@@ -446,8 +446,8 @@ K-9 Mail セットアップにようこそ。\nK-9 はオープンソースで�
     <string name="account_settings_hide_buttons_always">常に表示</string>
 
     <string name="account_settings_composition">メッセージを書く</string>
-    <string name="account_settings_sync">フォルダー同期化</string>
-    <string name="account_settings_folders">フォルダー</string>
+    <string name="account_settings_sync">フォルダ同期化</string>
+    <string name="account_settings_folders">フォルダ</string>
     <string name="account_settings_message_lists">メッセージリスト</string>
     <string name="account_settings_message_view">メッセージ表示</string>
 
@@ -487,7 +487,7 @@ K-9 Mail セットアップにようこそ。\nK-9 はオープンソースで�
     <string name="folder_settings_in_top_group_label">受信フォルダのみ表示</string>
     <string name="folder_settings_in_top_group_summary">フォルダリストに先頭フォルダを表示する</string>
 
-    <string name="folder_settings_folder_display_mode_label">フォルダー表示クラス</string>
+    <string name="folder_settings_folder_display_mode_label">フォルダ表示クラス</string>
     <string name="folder_settings_folder_display_mode_normal">設定しない</string>
     <string name="folder_settings_folder_display_mode_first_class">1st クラス</string>
     <string name="folder_settings_folder_display_mode_second_class">2nd クラス</string>
@@ -658,14 +658,14 @@ K-9 Mail セットアップにようこそ。\nK-9 はオープンソースで�
     <string name="batch_select_all">全選択</string>
     <string name="batch_deselect_all">選択マークを外す</string>
 
-    <string name="account_setup_push_limit_label">プッシュ受信の最大フォルダー数</string>
-    <string name="account_setup_push_limit_10">10 フォルダー</string>
-    <string name="account_setup_push_limit_25">25 フォルダー</string>
-    <string name="account_setup_push_limit_50">50 フォルダー</string>
-    <string name="account_setup_push_limit_100">100 フォルダー</string>
-    <string name="account_setup_push_limit_250">250 フォルダー</string>
-    <string name="account_setup_push_limit_500">500 フォルダー</string>
-    <string name="account_setup_push_limit_1000">1000 フォルダー</string>
+    <string name="account_setup_push_limit_label">プッシュ受信の最大フォルダ数</string>
+    <string name="account_setup_push_limit_10">10 フォルダ</string>
+    <string name="account_setup_push_limit_25">25 フォルダ</string>
+    <string name="account_setup_push_limit_50">50 フォルダ</string>
+    <string name="account_setup_push_limit_100">100 フォルダ</string>
+    <string name="account_setup_push_limit_250">250 フォルダ</string>
+    <string name="account_setup_push_limit_500">500 フォルダ</string>
+    <string name="account_setup_push_limit_1000">1000 フォルダ</string>
 
     <string name="animations_title">アニメーション</string>
     <string name="animations_summary">派手な視覚効果を使用する</string>
