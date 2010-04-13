@@ -100,7 +100,7 @@
     <string name="expunge_action">消去</string>
     <string name="set_sort_action">並び替えの選択</string>
     <string name="reverse_sort_action">並び替えの反転</string>
-    <string name="about_action">について</string>
+    <string name="about_action">K-9 Mailについて</string>
 
     <string name="prefs_title">設定</string>
     <string name="accounts_context_menu_title">アカウントオプション</string>
@@ -198,6 +198,7 @@ K-9 Mail セットアップにようこそ。\nK-9 はオープンソースで�
 \nK-9 では無料の hotmail アカウントの未サポートですが、多くのメールアプリと同じように Microsoft Exchange の互換性も持っています。
 \n
 \nバグレポートや新機能の貢献や質問がある場合 http://code.google.com/p/k9mail
+\n日本語版についての貢献や質問がある場合 http://groups.google.co.jp/group/k9mail_ja/
             
 </string>
 
@@ -469,7 +470,7 @@ K-9 Mail セットアップにようこそ。\nK-9 はオープンソースで�
     <string name="account_settings_folder_sync_mode_not_second_class">2nd クラスフォルダを除く全て</string>
     <string name="account_settings_folder_sync_mode_none">何もしない</string>
 
-    <string name="account_settings_folder_push_mode_label">Folders to check with push</string>
+    <string name="account_settings_folder_push_mode_label">プッシュ通知するフォルダ</string>
     <string name="account_settings_folder_push_mode_all">全て</string>
     <string name="account_settings_folder_push_mode_first_class">1st クラスフォルダのみ</string>
     <string name="account_settings_folder_push_mode_first_and_second_class">1st および 2nd クラスフォルダ</string>
@@ -485,7 +486,7 @@ K-9 Mail セットアップにようこそ。\nK-9 はオープンソースで�
     <string name="folder_settings_title">フォルダ設定</string>
 
     <string name="folder_settings_in_top_group_label">リストの先頭に表示</string>
-    <string name="folder_settings_in_top_group_summary">フォルダ一覧の先頭の方にフォルダを表示する</string>
+    <string name="folder_settings_in_top_group_summary">フォルダ一覧の先頭に表示する</string>
 
     <string name="folder_settings_folder_display_mode_label">フォルダ表示クラス</string>
     <string name="folder_settings_folder_display_mode_normal">設定しない</string>
