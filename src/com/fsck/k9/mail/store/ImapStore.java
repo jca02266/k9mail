@@ -1904,7 +1904,7 @@ public class ImapStore extends Store
                 setReadTimeout(Store.SOCKET_READ_TIMEOUT);
 
                 mIn = new PeekableInputStream(new BufferedInputStream(mSocket.getInputStream(),
-                                              1024));
+                                              10240));
                 mParser = new ImapResponseParser(mIn);
                 mOut = mSocket.getOutputStream();
 
@@ -1947,7 +1947,7 @@ public class ImapStore extends Store
                                   true);
                         mSocket.setSoTimeout(Store.SOCKET_READ_TIMEOUT);
                         mIn = new PeekableInputStream(new BufferedInputStream(mSocket
-                                                      .getInputStream(), 1024));
+                                                      .getInputStream(), 10240));
                         mParser = new ImapResponseParser(mIn);
                         mOut = mSocket.getOutputStream();
                     }
@@ -2018,7 +2018,7 @@ public class ImapStore extends Store
                             executeSimpleCommand(COMMAND_COMPRESS_DEFLATE);
                             ZInputStream zInputStream = new ZInputStream(mSocket.getInputStream(), true);
                             zInputStream.setFlushMode(JZlib.Z_PARTIAL_FLUSH);
-                            mIn = new PeekableInputStream(new BufferedInputStream(zInputStream, 1024));
+                            mIn = new PeekableInputStream(new BufferedInputStream(zInputStream, 10240));
                             mParser = new ImapResponseParser(mIn);
                             ZOutputStream zOutputStream = new ZOutputStream(mSocket.getOutputStream(), JZlib.Z_BEST_SPEED, true);
                             mOut = new BufferedOutputStream(zOutputStream, 1024);
