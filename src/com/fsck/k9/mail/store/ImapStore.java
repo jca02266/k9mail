@@ -1858,6 +1858,8 @@ public class ImapStore extends Store
 
         public void open() throws IOException, MessagingException
         {
+            int bufsiz = 1024;
+
             if (isOpen())
             {
                 return;
@@ -1901,10 +1903,18 @@ public class ImapStore extends Store
                     mSocket.connect(socketAddress, SOCKET_CONNECT_TIMEOUT);
                 }
 
+                try {
+                    bufsiz = mSocket.getReceiveBufferSize();
+                    Log.i(K9.LOG_TAG, "Receive Buffer Size: " + Integer.toString(bufsiz));
+                }
+                catch (SocketException e) {
+                    Log.w(K9.LOG_TAG, "failed to getReceiveBufferSize(), use default buffer size " + Integer.toString(bufsiz), e);
+                }
+
                 setReadTimeout(Store.SOCKET_READ_TIMEOUT);
 
                 mIn = new PeekableInputStream(new BufferedInputStream(mSocket.getInputStream(),
-                                              10240));
+                                              bufsiz));
                 mParser = new ImapResponseParser(mIn);
                 mOut = mSocket.getOutputStream();
 
@@ -1945,9 +1955,18 @@ public class ImapStore extends Store
                                         }, new SecureRandom());
                         mSocket = sslContext.getSocketFactory().createSocket(mSocket, mHost, mPort,
                                   true);
+
+                        try {
+                            bufsiz = mSocket.getReceiveBufferSize();
+                            Log.i(K9.LOG_TAG, "Receive Buffer Size: " + Integer.toString(bufsiz));
+                        }
+                        catch (SocketException e) {
+                            Log.w(K9.LOG_TAG, "failed to getReceiveBufferSize(), use default buffer size " + Integer.toString(bufsiz), e);
+                        }
+
                         mSocket.setSoTimeout(Store.SOCKET_READ_TIMEOUT);
                         mIn = new PeekableInputStream(new BufferedInputStream(mSocket
-                                                      .getInputStream(), 10240));
+                                                      .getInputStream(), bufsiz));
                         mParser = new ImapResponseParser(mIn);
                         mOut = mSocket.getOutputStream();
                     }
@@ -2018,7 +2037,7 @@ public class ImapStore extends Store
                             executeSimpleCommand(COMMAND_COMPRESS_DEFLATE);
                             ZInputStream zInputStream = new ZInputStream(mSocket.getInputStream(), true);
                             zInputStream.setFlushMode(JZlib.Z_PARTIAL_FLUSH);
-                            mIn = new PeekableInputStream(new BufferedInputStream(zInputStream, 10240));
+                            mIn = new PeekableInputStream(new BufferedInputStream(zInputStream, bufsiz));
                             mParser = new ImapResponseParser(mIn);
                             ZOutputStream zOutputStream = new ZOutputStream(mSocket.getOutputStream(), JZlib.Z_BEST_SPEED, true);
                             mOut = new BufferedOutputStream(zOutputStream, 1024);
