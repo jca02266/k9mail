@@ -1308,8 +1308,7 @@ public class MessagingController implements Runnable
                         }
                        
                         // And include it in the view
-                        if (message.getSubject() != null &&
-                                message.getFrom() != null)
+                        if (message.getFrom() != null)
                         {
                             /*
                              * We check to make sure that we got something worth
