@@ -39,7 +39,7 @@
     <string name="cancel_action">キャンセル</string>
     <string name="send_action">送信</string>
     <string name="select_action">選択</string>
-    <string name="deselect_action">選択解除t</string>
+    <string name="deselect_action">選択解除</string>
     <string name="reply_action">返信</string>
     <string name="reply_all_action">全員に返信</string>
     <string name="delete_action">削除</string>
@@ -58,7 +58,7 @@
     <string name="send_messages_action">メール送信</string>
     <string name="list_folders_action">フォルダ一覧</string>
     <string name="refresh_folders_action">フォルダ再読込</string>
-    <string name="mark_all_as_read_action">表示メールを既読にする</string>
+    <string name="mark_all_as_read_action">すべてのメールを既読にする</string>
     <string name="add_account_action">アカウント追加</string>
     <string name="compose_action">作成</string>
     <string name="search_action">検索</string>
@@ -76,19 +76,18 @@
     <string name="back_to_accounts_action">\u25c0</string>
     <string name="back_to_folder_list_action">\u25c0</string>
     <string name="read_action">既読</string>
-    <string name="mark_as_read_action">マークを既読へ</string>
+    <string name="mark_as_read_action">既読にする</string>
     <string name="send_alternate_action">転送</string>
     <string name="send_alternate_chooser_title">送信者選択</string>
 
-    <string name="mark_all_as_read_dlg_title">マークを付けたメールを既読</string>
-    <string name="mark_all_as_read_dlg_instructions_fmt">マークを付けた全てのメールを既読にしても良いですか？ &apos;&apos;<xliff:g id="folder">%s</xliff:g>
-    (非表示フォルダに含まれるメッセージも同様です)</string>
+    <string name="mark_all_as_read_dlg_title">すべてのメールを既読にする</string>
+    <string name="mark_all_as_read_dlg_instructions_fmt">\&apos;<xliff:g id="folder">%s</xliff:g>\&apos;フォルダのすべてのメールを既読にしても良いですか？(一覧に表示されていないメッセージも既読にします)</string>
 
     <string name="flag_action">スターを付ける</string>
     <string name="unflag_action">スターをはずす</string>
     <string name="copy_action">コピー</string>
 
-    <string name="mark_as_unread_action">マークを未読へ</string>
+    <string name="mark_as_unread_action">未読にする</string>
     <string name="move_to_action">移動先</string>
     <string name="folders_action">フォルダ</string>
     <string name="view_hide_details_action">詳細の表示/非表示</string>
@@ -97,7 +96,7 @@
     <string name="add_attachment_action">添付追加</string>
     <string name="dump_settings_action">ダンプ設定</string>
     <string name="empty_trash_action">ゴミ箱を空に</string>
-    <string name="expunge_action">消去</string>
+    <string name="expunge_action">完全削除(Expunge)</string>
     <string name="set_sort_action">並び替えの選択</string>
     <string name="reverse_sort_action">並び替えの反転</string>
     <string name="about_action">K-9 Mailについて</string>
@@ -222,8 +221,8 @@ K-9 Mail セットアップにようこそ。\nK-9 はオープンソースで�
     <string name="message_list_load_more_messages_action">他メールを読込</string>
     <string name="message_list_to_fmt">宛先:<xliff:g id="counterParty">%s</xliff:g></string>
     <string name="message_list_delete_action">削除</string>
-    <string name="message_list_mark_read_action">マークを既読</string>
-    <string name="message_list_mark_unread_action">マークを未読</string>
+    <string name="message_list_mark_read_action">既読にする</string>
+    <string name="message_list_mark_unread_action">未読にする</string>
     <string name="message_list_flag_action">スターを付ける</string>
     <string name="message_list_unflag_action">スターをはずす</string>
 
@@ -325,20 +324,20 @@ K-9 Mail セットアップにようこそ。\nK-9 はオープンソースで�
     <string name="account_setup_incoming_security_tls_optional_label">可能なら TLS を使用する</string>
     <string name="account_setup_incoming_security_tls_label">TLS を使用する</string>
 
-    <string name="account_setup_incoming_delete_policy_label">サーバから削除する期限設定</string>
-    <string name="account_setup_incoming_delete_policy_never_label">サーバから削除は行わない</string>
-    <string name="account_setup_incoming_delete_policy_7days_label">７日後</string>
-    <string name="account_setup_incoming_delete_policy_delete_label">サーバから削除する</string>
-    <string name="account_setup_incoming_delete_policy_markread_label">既読マークを付けたメールを削除</string>
+    <string name="account_setup_incoming_delete_policy_label">メール削除時の動作</string>
+    <string name="account_setup_incoming_delete_policy_never_label">サーバでは削除しない</string>
+    <string name="account_setup_incoming_delete_policy_7days_label">７日後に削除する</string>
+    <string name="account_setup_incoming_delete_policy_delete_label">サーバでも削除する</string>
+    <string name="account_setup_incoming_delete_policy_markread_label">サーバでは既読にする</string>
 
     <string name="account_setup_incoming_compression_label">ネットワーク経由で圧縮:</string>
     <string name="account_setup_incoming_mobile_label">モバイル</string>
     <string name="account_setup_incoming_wifi_label">WiFi</string>
     <string name="account_setup_incoming_other_label">その他</string>
 
-    <string name="account_setup_expunge_policy_label">メッセージ削除</string>
-    <string name="account_setup_expunge_policy_immediately">即座に削除または移動</string>
-    <string name="account_setup_expunge_policy_on_poll">個別受信</string>
+    <string name="account_setup_expunge_policy_label">メッセージ完全削除(Expunge)</string>
+    <string name="account_setup_expunge_policy_immediately">削除または移動後即時</string>
+    <string name="account_setup_expunge_policy_on_poll">同期のタイミングで完全削除(Expunge)</string>
     <string name="account_setup_expunge_policy_manual">手動のみ</string>
 
     <string name="account_setup_incoming_imap_path_prefix_label">IMAP ルートフォルダパス</string>
