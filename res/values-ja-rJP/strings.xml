@@ -639,8 +639,8 @@ K-9 Mail セットアップにようこそ。\nK-9 はオープンソースで�
     <string name="no_message_seletected_toast">メッセージが選択されていません</string>
 
     <string name="date_format_label">日付書式</string>
-    <string name="date_format_short">短い形式</string>
-    <string name="date_format_medium">長い形式</string>
+    <string name="date_format_short">SHORT</string>
+    <string name="date_format_medium">MEDIUM</string>
     <string name="date_format_common">dd-MMM-yyyy</string>
     <string name="date_format_iso8601">yyyy-MM-dd</string>
 
