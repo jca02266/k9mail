@@ -498,7 +498,7 @@ K-9 Mail セットアップにようこそ。\nK-9 はオープンソースで�
     <string name="folder_settings_folder_sync_mode_second_class">2nd クラス</string>
     <string name="folder_settings_folder_sync_mode_inherited">表示クラスと同一設定</string>
 
-    <string name="folder_settings_folder_push_mode_label">プッシュクラスフォルダ</string>
+    <string name="folder_settings_folder_push_mode_label">フォルダプッシュクラス</string>
     <string name="folder_settings_folder_push_mode_normal">設定しない</string>
     <string name="folder_settings_folder_push_mode_first_class">1st クラス</string>
     <string name="folder_settings_folder_push_mode_second_class">2nd クラス</string>
