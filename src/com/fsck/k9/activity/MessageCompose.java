@@ -303,6 +303,10 @@ public class MessageCompose extends K9Activity implements OnClickListener, OnFoc
                                       int before, int count)
             {
                 mDraftNeedsSaving = true;
+
+                if (s == mMessageContentView.getText() && s.length() == 0 && mAttachments.getChildCount() == 0) {
+                    mDraftNeedsSaving = false;
+                }
             }
 
             public void afterTextChanged(android.text.Editable s) { }
@@ -318,6 +322,10 @@ public class MessageCompose extends K9Activity implements OnClickListener, OnFoc
             {
                 mDraftNeedsSaving = true;
                 mSignatureChanged = true;
+
+                if (mMessageContentView.getText().length() == 0 && mAttachments.getChildCount() == 0) {
+                    mDraftNeedsSaving = false;
+                }
             }
 
             public void afterTextChanged(android.text.Editable s) { }
