@@ -108,7 +108,7 @@
     <string name="general_no_subject">(件名なし)</string>
 
     <string name="general_no_sender">送信無し</string>
-    <string name="status_loading">取込中\u2026<xliff:g id="progress">%s</xliff:g></string>
+    <string name="status_loading">取込中</string>
     <string name="status_loading_folder">(取込中 <xliff:g id="folder">%s</xliff:g><xliff:g id="progress">%s</xliff:g>)</string>
     <string name="status_loading_more">メール取込中\u2026</string>
     <string name="status_network_error">接続エラー</string>
@@ -586,7 +586,7 @@ K-9 Mail セットアップにようこそ。\nK-9 はオープンソースで�
     <string name="sort_by_attach">添付</string>
     <string name="message_web_view_error">%s</string>
 
-    <string name="account_delete_dlg_title">削除</string>
+    <string name="account_delete_dlg_title">アカウント削除</string>
     <string name="account_delete_dlg_instructions_fmt">アカウント \"<xliff:g id="account">%s</xliff:g>\" はK-9 Mailから削除されます。</string>
 
     <string name="provider_note_yahoo">無料のYahoo! メールアカウントは T-Mobile でのみ動作します． Yahoo! メール設定は POP3 マニュアル設定を行ってください．</string>
