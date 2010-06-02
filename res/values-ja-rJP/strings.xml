@@ -505,9 +505,9 @@ K-9 Mail セットアップにようこそ。\nK-9 はオープンソースで�
     <string name="folder_settings_folder_push_mode_inherited">同期クラスと同一設定</string>
 
     <string name="account_settings_incoming_label">受信メールサーバ設定</string>
-    <string name="account_settings_incoming_summary">受信メールサーバの設定を行います</string>
+    <string name="account_settings_incoming_summary">受信メールサーバの設定を行う</string>
     <string name="account_settings_outgoing_label">送信メールサーバ設定</string>
-    <string name="account_settings_outgoing_summary">送信メールサーバの設定を行います</string>
+    <string name="account_settings_outgoing_summary">送信メールサーバの設定を行う</string>
     <string name="account_settings_add_account_label">アカウント追加</string>
     <string name="account_settings_description_label">アカウント名</string>
     <string name="account_settings_name_label">名前</string>
