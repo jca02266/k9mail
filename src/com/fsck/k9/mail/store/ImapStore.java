@@ -1021,7 +1021,7 @@ public class ImapStore extends Store
             final StringBuilder dateSearchString = new StringBuilder();
             if (earliestDate != null)
             {
-                dateSearchString.append("SINCE ");
+                dateSearchString.append(" SINCE ");
                 synchronized(RFC3501_DATE)
                 {
                     dateSearchString.append(RFC3501_DATE.format(earliestDate));
@@ -1033,7 +1033,8 @@ public class ImapStore extends Store
             {
                 public List<ImapResponse> search() throws IOException, MessagingException
                 {
-                    return executeSimpleCommand(String.format("UID SEARCH %d:%d %s " + (includeDeleted ? "" : " NOT DELETED"), start, end, dateSearchString));
+                    return executeSimpleCommand(String.format("UID SEARCH %d:%d%s"
+                                                              + (includeDeleted ? "" : " NOT DELETED"), start, end, dateSearchString));
                 }
             };
             return search(searcher, listener);
