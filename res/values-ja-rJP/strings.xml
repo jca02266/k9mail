@@ -292,6 +292,9 @@ K-9 Mail セットアップにようこそ。\nK-9 はオープンソースで�
     <string name="global_settings_touchable_label">タッチビュー</string>
     <string name="global_settings_touchable_summary">Roomier list items with message previews</string>
 
+    <string name="global_settings_messageview_fixedwidth_label">Fixed-width fonts</string>
+    <string name="global_settings_messageview_fixedwidth_summary">Use a fixed-width font when showing plain-text messages</string>
+
     <string name="account_setup_basics_title">電子メールセットアップ</string>
     <string name="account_setup_basics_instructions">このアカウントで使用するメールアドレスを入力して下さい</string>
     <string name="account_setup_basics_instructions2_fmt">(追加する場合は <xliff:g id="number_accounts">%d</xliff:g> と異なるメールアドレスを入力して下さい)</string>
@@ -671,6 +674,7 @@ K-9 Mail セットアップにようこそ。\nK-9 はオープンソースで�
     <string name="operational_preferences">同期設定</string>
     <string name="accountlist_preferences">Account List</string>
     <string name="messagelist_preferences">メッセージ一覧</string>
+    <string name="messageview_preferences">Messages</string>
     <string name="settings_theme_label">テーマ</string>
 
     <string name="background_ops_label">バックグラウンド同期</string>
