@@ -274,6 +274,9 @@ K-9 Mail セットアップにようこそ。\nK-9 はオープンソースで�
 
     <string name="folder_push_active_symbol">(プッシュ)</string>
 
+    <string name="find_action">Find messages</string>
+    <string name="from_same_sender">More from this sender</string>
+
     <string name="message_copied_toast">メールをコピーしました</string>
     <string name="message_moved_toast">メールを移動しました</string>
     <string name="message_deleted_toast">メールを削除しました</string>
