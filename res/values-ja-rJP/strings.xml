@@ -290,6 +290,7 @@ K-9 Mail セットアップにようこそ。\nK-9 はオープンソースで�
     <string name="global_settings_checkbox_label">複数選択チェックボックス</string>
     <string name="global_settings_checkbox_summary">複数選択チェックボックス常時表示</string>
     <string name="global_settings_touchable_label">タッチビュー</string>
+    <string name="global_settings_touchable_summary">Roomier list items with message previews</string>
 
     <string name="account_setup_basics_title">電子メールセットアップ</string>
     <string name="account_setup_basics_instructions">このアカウントで使用するメールアドレスを入力して下さい</string>
