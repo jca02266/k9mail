@@ -636,7 +636,6 @@ K-9 Mail セットアップにようこそ。\nK-9 はオープンソースで�
     <string name="account_clear_dlg_title">Clear Account</string>
     <string name="account_clear_dlg_instructions_fmt">All messages in \"<xliff:g id="account">%s</xliff:g>\" will be removed from K-9 Mail, but account settings will be retained.</string>
 
-    <string name="provider_note_yahoo">無料のYahoo! メールアカウントは T-Mobile でのみ動作します． Yahoo! メール設定は POP3 マニュアル設定を行ってください．</string>
     <string name="provider_note_live">このプログラムでPOPアクセスが許可されているのは一部の「Plus」アカウントだけです。有料の「Plus」アカウントがなければ、正しいメールアドレスとパスワードを入力してもログインできません。これらのアカウントにはブラウザからアクセスしてください。</string>
 
     <string name="account_setup_failed_dlg_invalid_certificate_title">証明書が無効です</string>
