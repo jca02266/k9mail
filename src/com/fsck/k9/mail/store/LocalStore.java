@@ -36,7 +36,7 @@ import java.util.regex.Matcher;
  */
 public class LocalStore extends Store implements Serializable
 {
-    private static final int DB_VERSION = 35;
+    private static final int DB_VERSION = 36;
     private static final Flag[] PERMANENT_FLAGS = { Flag.DELETED, Flag.X_DESTROYED, Flag.SEEN, Flag.FLAGGED };
 
     private String mPath;
@@ -140,7 +140,7 @@ public class LocalStore extends Store implements Serializable
                 mDb.execSQL("DROP TABLE IF EXISTS messages");
                 mDb.execSQL("CREATE TABLE messages (id INTEGER PRIMARY KEY, deleted INTEGER default 0, folder_id INTEGER, uid TEXT, subject TEXT, "
                             + "date INTEGER, flags TEXT, sender_list TEXT, to_list TEXT, cc_list TEXT, bcc_list TEXT, reply_to_list TEXT, "
-                            + "html_content TEXT, text_content TEXT, attachment_count INTEGER, internal_date INTEGER, message_id TEXT, preview TEXT)");
+                            + "html_content TEXT, text_content TEXT, attachment_count INTEGER, internal_date INTEGER, message_id TEXT, preview TEXT, external_filename TEXT)");
 
                 mDb.execSQL("DROP TABLE IF EXISTS headers");
                 mDb.execSQL("CREATE TABLE headers (id INTEGER PRIMARY KEY, message_id INTEGER, name TEXT, value TEXT)");
@@ -231,6 +231,20 @@ public class LocalStore extends Store implements Serializable
                     catch (SQLiteException e)
                     {
                         Log.e(K9.LOG_TAG, "Unable to get rid of obsolete flag X_NO_SEEN_INFO", e);
+                    }
+                }
+                if (mDb.getVersion() < 36)
+                {
+                    try
+                    {
+                        mDb.execSQL("ALTER TABLE messages ADD external_filename TEXT");
+                    }
+                    catch (SQLiteException e)
+                    {
+                        if (! e.getMessage().startsWith("duplicate column name: external_filename"))
+                        {
+                            throw e;
+                        }
                     }
                 }
 
@@ -1341,12 +1355,13 @@ public class LocalStore extends Store implements Serializable
                     mp.setSubType("mixed");
                     try
                     {
-                        cursor = mDb.rawQuery("SELECT html_content, text_content FROM messages "
+                        cursor = mDb.rawQuery("SELECT html_content, text_content, external_filename FROM messages "
                                               + "WHERE id = ?",
                                               new String[] { Long.toString(localMessage.mId) });
                         cursor.moveToNext();
                         String htmlContent = cursor.getString(0);
                         String textContent = cursor.getString(1);
+                        String external_filename = cursor.getString(2);
 
                         if (textContent != null)
                         {
@@ -1354,11 +1369,25 @@ public class LocalStore extends Store implements Serializable
                             MimeBodyPart bp = new MimeBodyPart(body, "text/plain");
                             mp.addBodyPart(bp);
                         }
-                        else
+                        else if (htmlContent != null)
                         {
                             TextBody body = new TextBody(htmlContent);
                             MimeBodyPart bp = new MimeBodyPart(body, "text/html");
                             mp.addBodyPart(bp);
+                        }
+                        else if (external_filename != null)
+                        {
+                            try {
+                                FileInputStream is = new FileInputStream(new File(external_filename));
+                                MimeMessage mm = new MimeMessage(is);
+                                TextBody body = readMessage(mm);
+                                MimeBodyPart bp = new MimeBodyPart(body, "text/html");
+                                mp.addBodyPart(bp);
+                            }
+                            catch (Exception e) // FileNotFoundException, IOException
+                            {
+                                Log.e(K9.LOG_TAG, "cannot open file:" + external_filename, e);
+                            }
                         }
                     }
                     finally
@@ -1666,6 +1695,44 @@ public class LocalStore extends Store implements Serializable
             appendMessages(messages, false);
         }
 
+        private TextBody readMessage(Message message) throws MessagingException
+        {
+            ArrayList<Part> viewables = new ArrayList<Part>();
+            ArrayList<Part> attachments = new ArrayList<Part>();
+            MimeUtility.collectParts(message, viewables, attachments);
+
+            StringBuffer sbHtml = new StringBuffer();
+            StringBuffer sbText = new StringBuffer();
+            for (Part viewable : viewables)
+            {
+                try
+                {
+                    String text = MimeUtility.getTextFromPart(viewable);
+                    /*
+                     * Anything with MIME type text/html will be stored as such. Anything
+                     * else will be stored as text/plain.
+                     */
+                    if (viewable.getMimeType().equalsIgnoreCase("text/html"))
+                    {
+                        sbHtml.append(text);
+                    }
+                    else
+                    {
+                        sbText.append(text);
+                    }
+                }
+                catch (Exception e)
+                {
+                    throw new MessagingException("Unable to get text for message part", e);
+                }
+            }
+
+            String text = sbText.toString();
+            String html = markupContent(text, sbHtml.toString());
+
+            return new TextBody(html);
+        }
+
         /**
          * The method differs slightly from the contract; If an incoming message already has a uid
          * assigned and it matches the uid of an existing message then this message will replace the
@@ -1763,8 +1830,8 @@ public class LocalStore extends Store implements Serializable
                     cv.put("to_list", Address.pack(message.getRecipients(RecipientType.TO)));
                     cv.put("cc_list", Address.pack(message.getRecipients(RecipientType.CC)));
                     cv.put("bcc_list", Address.pack(message.getRecipients(RecipientType.BCC)));
-                    cv.put("html_content", html.length() > 0 ? html : null);
-                    cv.put("text_content", text.length() > 0 ? text : null);
+                    // cv.put("html_content", html.length() > 0 ? html : null);
+                    // cv.put("text_content", text.length() > 0 ? text : null);
                     cv.put("preview", preview.length() > 0 ? preview : null);
                     cv.put("reply_to_list", Address.pack(message.getReplyTo()));
                     cv.put("attachment_count", attachments.size());
@@ -1775,6 +1842,8 @@ public class LocalStore extends Store implements Serializable
                     {
                         cv.put("message_id", messageId);
                     }
+                    String external_filename = ((MimeMessage)message).getPath();
+                    cv.put("external_filename", external_filename);
                     long messageUid = mDb.insert("messages", "uid", cv);
                     for (Part attachment : attachments)
                     {

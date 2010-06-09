@@ -2,6 +2,8 @@
 package com.fsck.k9.mail.internet;
 
 import com.fsck.k9.mail.*;
+
+import org.apache.commons.io.IOUtils;
 import org.apache.james.mime4j.BodyDescriptor;
 import org.apache.james.mime4j.ContentHandler;
 import org.apache.james.mime4j.EOLConvertingInputStream;
@@ -12,6 +14,8 @@ import org.apache.james.mime4j.field.Field;
 import java.io.*;
 import java.text.SimpleDateFormat;
 import java.util.*;
+
+import android.os.Environment;  // FIXME: arai
 
 /**
  * An implementation of Message that stores all of it's metadata in RFC 822 and
@@ -36,11 +40,29 @@ public class MimeMessage extends Message
     protected Body mBody;
     protected int mSize;
 
+    protected File mTemp;
+
+    public String getPath()
+    {
+    	return mTemp.getPath();
+    }
+
     public MimeMessage()
     {
     }
 
 
+    private InputStream changeToTempFile(InputStream in) throws IOException
+    {
+        File f = File.createTempFile("k9mail_tmp", ".tmp", Environment.getExternalStorageDirectory());
+        FileOutputStream out = new FileOutputStream(f);
+        IOUtils.copy(in, out);
+        in.close();
+        out.close();
+
+        mTemp = f;
+        return new FileInputStream(f);
+    }
     /**
      * Parse the given InputStream using Apache Mime4J to build a MimeMessage.
      *
@@ -69,6 +91,10 @@ public class MimeMessage extends Message
         mSentDate = null;
 
         mBody = null;
+
+        if (!(in instanceof FileInputStream)) {
+            in = changeToTempFile(in);
+        }
 
         MimeStreamParser parser = new MimeStreamParser();
         parser.setContentHandler(new MimeMessageBuilder());
