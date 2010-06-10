@@ -14,6 +14,8 @@ import android.widget.*;
 
 import com.fsck.k9.*;
 import com.fsck.k9.activity.ChooseFolder;
+import com.fsck.k9.activity.K9Activity;
+import com.fsck.k9.helper.Utility;
 import java.io.UnsupportedEncodingException;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -83,6 +85,11 @@ public class AccountSetupIncoming extends K9Activity implements OnClickListener
     private CheckBox compressionMobile;
     private CheckBox compressionWifi;
     private CheckBox compressionOther;
+    private CheckBox saveAllHeaders;
+    private CheckBox pushPollOnConnect;
+    private Spinner idleRefreshPeriod;
+    private Spinner folderPushLimit;
+    private CheckBox subscribedFoldersOnly;
 
     public static void actionIncomingSettings(Activity context, Account account, boolean makeDefault)
     {
@@ -125,6 +132,13 @@ public class AccountSetupIncoming extends K9Activity implements OnClickListener
         compressionMobile = (CheckBox)findViewById(R.id.compression_mobile);
         compressionWifi = (CheckBox)findViewById(R.id.compression_wifi);
         compressionOther = (CheckBox)findViewById(R.id.compression_other);
+        saveAllHeaders = (CheckBox)findViewById(R.id.save_all_headers);
+        pushPollOnConnect = (CheckBox)findViewById(R.id.push_poll_on_connect);
+
+        subscribedFoldersOnly = (CheckBox)findViewById(R.id.subscribed_folders_only);
+        idleRefreshPeriod = (Spinner)findViewById(R.id.idle_refresh_period);
+
+        folderPushLimit = (Spinner)findViewById(R.id.folder_push_limit);
 
         mImapFolderDrafts.setOnClickListener(this);
         mImapFolderSent.setOnClickListener(this);
@@ -166,12 +180,12 @@ public class AccountSetupIncoming extends K9Activity implements OnClickListener
          */
         mSecurityTypeView.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener()
         {
-            public void onItemSelected(AdapterView arg0, View arg1, int arg2, long arg3)
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id)
             {
                 updatePortFromSecurityType();
             }
 
-            public void onNothingSelected(AdapterView<?> arg0)
+            public void onNothingSelected(AdapterView<?> parent)
             {
             }
         });
@@ -285,8 +299,15 @@ public class AccountSetupIncoming extends K9Activity implements OnClickListener
                 findViewById(R.id.imap_folder_setup_section).setVisibility(View.GONE);
                 findViewById(R.id.webdav_path_prefix_section).setVisibility(View.GONE);
                 findViewById(R.id.webdav_path_debug_section).setVisibility(View.GONE);
+                findViewById(R.id.account_auth_type_label).setVisibility(View.GONE);
                 findViewById(R.id.account_auth_type).setVisibility(View.GONE);
                 findViewById(R.id.compression_section).setVisibility(View.GONE);
+                findViewById(R.id.compression_label).setVisibility(View.GONE);
+                findViewById(R.id.push_poll_on_connect_section).setVisibility(View.GONE);
+                findViewById(R.id.idle_refresh_period_label).setVisibility(View.GONE);
+                findViewById(R.id.idle_refresh_period).setVisibility(View.GONE);
+                findViewById(R.id.account_setup_push_limit_label).setVisibility(View.GONE);
+                findViewById(R.id.folder_push_limit).setVisibility(View.GONE);
                 mAccount.setDeletePolicy(Account.DELETE_POLICY_NEVER);
 
 
@@ -319,8 +340,16 @@ public class AccountSetupIncoming extends K9Activity implements OnClickListener
 
                 /** Hide the unnecessary fields */
                 findViewById(R.id.imap_path_prefix_section).setVisibility(View.GONE);
+                findViewById(R.id.account_auth_type_label).setVisibility(View.GONE);
                 findViewById(R.id.account_auth_type).setVisibility(View.GONE);
                 findViewById(R.id.compression_section).setVisibility(View.GONE);
+                findViewById(R.id.compression_label).setVisibility(View.GONE);
+                findViewById(R.id.push_poll_on_connect_section).setVisibility(View.GONE);
+                findViewById(R.id.idle_refresh_period_label).setVisibility(View.GONE);
+                findViewById(R.id.idle_refresh_period).setVisibility(View.GONE);
+                findViewById(R.id.account_setup_push_limit_label).setVisibility(View.GONE);
+                findViewById(R.id.folder_push_limit).setVisibility(View.GONE);
+                subscribedFoldersOnly.setVisibility(View.GONE);
                 if (uri.getPath() != null && uri.getPath().length() > 0)
                 {
                     String[] pathParts = uri.getPath().split("\\|");
@@ -370,6 +399,7 @@ public class AccountSetupIncoming extends K9Activity implements OnClickListener
             compressionMobile.setChecked(mAccount.useCompression(Account.TYPE_MOBILE));
             compressionWifi.setChecked(mAccount.useCompression(Account.TYPE_WIFI));
             compressionOther.setChecked(mAccount.useCompression(Account.TYPE_OTHER));
+
             if (uri.getHost() != null)
             {
                 mServerView.setText(uri.getHost());
@@ -383,6 +413,15 @@ public class AccountSetupIncoming extends K9Activity implements OnClickListener
             {
                 updatePortFromSecurityType();
             }
+
+            saveAllHeaders.setChecked(mAccount.isSaveAllHeaders());
+            pushPollOnConnect.setChecked(mAccount.isPushPollOnConnect());
+            subscribedFoldersOnly.setChecked(mAccount.subscribedFoldersOnly());
+            SpinnerHelper.initSpinner(this, idleRefreshPeriod, R.array.idle_refresh_period_entries,
+                                      R.array.idle_refresh_period_values, String.valueOf(mAccount.getIdleRefreshMinutes()));
+
+            SpinnerHelper.initSpinner(this, folderPushLimit, R.array.account_settings_push_limit_entries,
+                                      R.array.account_settings_push_limit_values, String.valueOf(mAccount.getMaxPushFolders()));
 
             validateFields();
         }
@@ -449,8 +488,8 @@ public class AccountSetupIncoming extends K9Activity implements OnClickListener
                  */
                 try
                 {
-                    String usernameEnc = URLEncoder.encode(mUsernameView.getText().toString(), "UTF-8"); 
-                    String passwordEnc = URLEncoder.encode(mPasswordView.getText().toString(), "UTF-8"); 
+                    String usernameEnc = URLEncoder.encode(mUsernameView.getText().toString(), "UTF-8");
+                    String passwordEnc = URLEncoder.encode(mPasswordView.getText().toString(), "UTF-8");
                     URI oldUri = new URI(mAccount.getTransportUri());
                     URI uri = new URI(
                         oldUri.getScheme(),
@@ -502,7 +541,7 @@ public class AccountSetupIncoming extends K9Activity implements OnClickListener
             final String userInfo;
             String user = mUsernameView.getText().toString();
             String password = mPasswordView.getText().toString();
-            String userEnc = URLEncoder.encode(user, "UTF-8");        
+            String userEnc = URLEncoder.encode(user, "UTF-8");
             String passwordEnc = URLEncoder.encode(password, "UTF-8");
 
             if (mAccountSchemes[securityType].startsWith("imap"))
@@ -532,6 +571,30 @@ public class AccountSetupIncoming extends K9Activity implements OnClickListener
             mAccount.setCompression(Account.TYPE_MOBILE, compressionMobile.isChecked());
             mAccount.setCompression(Account.TYPE_WIFI, compressionWifi.isChecked());
             mAccount.setCompression(Account.TYPE_OTHER, compressionOther.isChecked());
+            mAccount.setSaveAllHeaders(saveAllHeaders.isChecked());
+            mAccount.setPushPollOnConnect(pushPollOnConnect.isChecked());
+            mAccount.setSubscribedFoldersOnly(subscribedFoldersOnly.isChecked());
+            String idleRefreshPeriodValue = SpinnerHelper.getSpinnerValue(idleRefreshPeriod);
+            try
+            {
+                mAccount.setIdleRefreshMinutes(Integer.parseInt(idleRefreshPeriodValue));
+            }
+            catch (Exception e)
+            {
+                Log.e(K9.LOG_TAG, "Unable to parse idle refresh period value '" + idleRefreshPeriodValue + "'", e);
+                mAccount.setIdleRefreshMinutes(24);
+            }
+            String maxPushFoldersValue = SpinnerHelper.getSpinnerValue(folderPushLimit);
+            try
+            {
+                mAccount.setMaxPushFolders(Integer.parseInt(maxPushFoldersValue));
+            }
+            catch (Exception e)
+            {
+                Log.e(K9.LOG_TAG, "Unable to parse max push folders value '" + maxPushFoldersValue + "'", e);
+                mAccount.setMaxPushFolders(10);
+            }
+
             AccountSetupCheckSettings.actionCheckSettings(this, mAccount, true, false);
         }
         catch (Exception e)

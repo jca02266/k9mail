@@ -10,17 +10,29 @@ import android.content.Context;
 import android.content.Intent;
 import android.os.IBinder;
 import android.os.PowerManager;
-import android.os.PowerManager.WakeLock;
 import android.util.Log;
 import com.fsck.k9.K9;
+import com.fsck.k9.helper.power.TracingPowerManager;
+import com.fsck.k9.helper.power.TracingPowerManager.TracingWakeLock;
 
 public abstract class CoreService extends Service
 {
 
     public static String WAKE_LOCK_ID = "com.fsck.k9.service.CoreService.wakeLockId";
-    private static ConcurrentHashMap<Integer, WakeLock> wakeLocks = new ConcurrentHashMap<Integer, WakeLock>();
+    private static ConcurrentHashMap<Integer, TracingWakeLock> wakeLocks = new ConcurrentHashMap<Integer, TracingWakeLock>();
     private static AtomicInteger wakeLockSeq = new AtomicInteger(0);
-    private final ExecutorService threadPool = Executors.newFixedThreadPool(1);  // Must be single threaded
+    private ExecutorService threadPool = null;
+    private final String className = getClass().getName();
+
+    @Override
+    public void onCreate()
+    {
+        if (K9.DEBUG)
+            Log.i(K9.LOG_TAG, "CoreService: " + className + ".onCreate()");
+        threadPool = Executors.newFixedThreadPool(1);  // Must be single threaded
+        super.onCreate();
+
+    }
 
     protected static void addWakeLockId(Intent i, Integer wakeLockId)
     {
@@ -32,8 +44,8 @@ public abstract class CoreService extends Service
 
     protected static void addWakeLock(Context context, Intent i)
     {
-        PowerManager pm = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
-        WakeLock wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "K9");
+        TracingPowerManager pm = TracingPowerManager.getPowerManager(context);
+        TracingWakeLock wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "CoreService addWakeLock");
         wakeLock.setReferenceCounted(false);
         wakeLock.acquire(K9.MAIL_SERVICE_WAKE_LOCK_TIMEOUT);
 
@@ -43,17 +55,18 @@ public abstract class CoreService extends Service
         i.putExtra(WAKE_LOCK_ID, tmpWakeLockId);
     }
 
+
+
     @Override
     public void onStart(Intent intent, int startId)
     {
-
-        PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
-        WakeLock wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "K9");
+        TracingPowerManager pm = TracingPowerManager.getPowerManager(this);
+        TracingWakeLock wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "CoreService onStart");
         wakeLock.setReferenceCounted(false);
         wakeLock.acquire(K9.MAIL_SERVICE_WAKE_LOCK_TIMEOUT);
 
         if (K9.DEBUG)
-            Log.i(K9.LOG_TAG, "CoreService: " + this.getClass().getName() + ".onStart(" + intent + ", " + startId);
+            Log.i(K9.LOG_TAG, "CoreService: " + className + ".onStart(" + intent + ", " + startId);
 
         int wakeLockId = intent.getIntExtra(BootReceiver.WAKE_LOCK_ID, -1);
         if (wakeLockId != -1)
@@ -65,7 +78,7 @@ public abstract class CoreService extends Service
         {
             if (K9.DEBUG)
                 Log.d(K9.LOG_TAG, "Got core wake lock id " + coreWakeLockId);
-            WakeLock coreWakeLock = wakeLocks.remove(coreWakeLockId);
+            TracingWakeLock coreWakeLock = wakeLocks.remove(coreWakeLockId);
             if (coreWakeLock != null)
             {
                 if (K9.DEBUG)
@@ -91,12 +104,12 @@ public abstract class CoreService extends Service
 
     public void execute(Context context, final Runnable runner, int wakeLockTime, final Integer startId)
     {
-        PowerManager pm = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
-        final WakeLock wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "K9");
+
+        TracingPowerManager pm = TracingPowerManager.getPowerManager(context);
+        final TracingWakeLock wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "CoreService execute");
         wakeLock.setReferenceCounted(false);
         wakeLock.acquire(wakeLockTime);
-        if (K9.DEBUG)
-            Log.d(K9.LOG_TAG, "CoreService (" + getClass().getName() + ") queueing Runnable " + runner.hashCode() + " with startId " + startId);
+
         Runnable myRunner = new Runnable()
         {
             public void run()
@@ -105,13 +118,13 @@ public abstract class CoreService extends Service
                 {
 
                     if (K9.DEBUG)
-                        Log.d(K9.LOG_TAG, "CoreService (" + getClass().getName() + ") running Runnable " + runner.hashCode() + " with startId " + startId);
+                        Log.d(K9.LOG_TAG, "CoreService (" + className + ") running Runnable " + runner.hashCode() + " with startId " + startId);
                     runner.run();
                 }
                 finally
                 {
                     if (K9.DEBUG)
-                        Log.d(K9.LOG_TAG, "CoreService (" + getClass().getName() + ") completed Runnable " + runner.hashCode() + " with startId " + startId);
+                        Log.d(K9.LOG_TAG, "CoreService (" + className + ") completed Runnable " + runner.hashCode() + " with startId " + startId);
                     wakeLock.release();
                     if (startId != null)
                     {
@@ -121,8 +134,20 @@ public abstract class CoreService extends Service
             }
 
         };
-
-        threadPool.execute(myRunner);
+        if (threadPool == null)
+        {
+            Log.e(K9.LOG_TAG, "CoreService.execute (" + className + ") called with no threadPool available; running Runnable " + runner.hashCode() + " in calling thread", new Throwable());
+            synchronized (this)
+            {
+                myRunner.run();
+            }
+        }
+        else
+        {
+            if (K9.DEBUG)
+                Log.d(K9.LOG_TAG, "CoreService (" + className + ") queueing Runnable " + runner.hashCode() + " with startId " + startId);
+            threadPool.execute(myRunner);
+        }
     }
 
     public abstract void startService(Intent intent, int startId);
@@ -138,7 +163,8 @@ public abstract class CoreService extends Service
     public void onDestroy()
     {
         if (K9.DEBUG)
-            Log.i(K9.LOG_TAG, "CoreService: " + this.getClass().getName() + ".onDestroy()");
+            Log.i(K9.LOG_TAG, "CoreService: " + className + ".onDestroy()");
+        threadPool.shutdown();
         super.onDestroy();
         //     MessagingController.getInstance(getApplication()).removeListener(mListener);
     }

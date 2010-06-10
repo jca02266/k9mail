@@ -8,15 +8,17 @@ import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteException;
 import android.net.Uri;
-import android.text.util.Regex;
 import android.util.Log;
 import com.fsck.k9.Account;
 import com.fsck.k9.K9;
 import com.fsck.k9.Preferences;
-import com.fsck.k9.Utility;
-import com.fsck.k9.codec.binary.Base64OutputStream;
+import com.fsck.k9.controller.MessageRemovalListener;
+import com.fsck.k9.controller.MessageRetrievalListener;
+import com.fsck.k9.helper.Regex;
+import com.fsck.k9.helper.Utility;
 import com.fsck.k9.mail.*;
 import com.fsck.k9.mail.Message.RecipientType;
+import com.fsck.k9.mail.filter.Base64OutputStream;
 import com.fsck.k9.mail.internet.*;
 import com.fsck.k9.provider.AttachmentProvider;
 import org.apache.commons.io.IOUtils;
@@ -34,8 +36,8 @@ import java.util.regex.Matcher;
  */
 public class LocalStore extends Store implements Serializable
 {
-    private static final int DB_VERSION = 33;
-    private static final Flag[] PERMANENT_FLAGS = { Flag.DELETED, Flag.X_DESTROYED, Flag.SEEN };
+    private static final int DB_VERSION = 35;
+    private static final Flag[] PERMANENT_FLAGS = { Flag.DELETED, Flag.X_DESTROYED, Flag.SEEN, Flag.FLAGGED };
 
     private String mPath;
     private SQLiteDatabase mDb;
@@ -90,6 +92,12 @@ public class LocalStore extends Store implements Serializable
         String[] tokens = dbFile.getName().split("\\.");
         uUid = tokens[0];
 
+        openOrCreateDataspace(application);
+
+    }
+
+    private void openOrCreateDataspace(Application application)
+    {
         File parentDir = new File(mPath).getParentFile();
         if (!parentDir.exists())
         {
@@ -107,7 +115,6 @@ public class LocalStore extends Store implements Serializable
         {
             doDbUpgrade(mDb, application);
         }
-
     }
 
     private void doDbUpgrade(SQLiteDatabase mDb, Application application)
@@ -127,7 +134,7 @@ public class LocalStore extends Store implements Serializable
 
                 mDb.execSQL("DROP TABLE IF EXISTS folders");
                 mDb.execSQL("CREATE TABLE folders (id INTEGER PRIMARY KEY, name TEXT, "
-                            + "last_updated INTEGER, unread_count INTEGER, visible_limit INTEGER, status TEXT, push_state TEXT, last_pushed INTEGER)");
+                            + "last_updated INTEGER, unread_count INTEGER, visible_limit INTEGER, status TEXT, push_state TEXT, last_pushed INTEGER, flagged_count INTEGER default 0)");
 
                 mDb.execSQL("CREATE INDEX IF NOT EXISTS folder_name ON folders (name)");
                 mDb.execSQL("DROP TABLE IF EXISTS messages");
@@ -201,6 +208,31 @@ public class LocalStore extends Store implements Serializable
                     }
 
                 }
+                if (mDb.getVersion() < 34)
+                {
+                    try
+                    {
+                        mDb.execSQL("ALTER TABLE folders ADD flagged_count INTEGER default 0");
+                    }
+                    catch (SQLiteException e)
+                    {
+                        if (! e.getMessage().startsWith("duplicate column name: flagged_count"))
+                        {
+                            throw e;
+                        }
+                    }
+                }
+                if (mDb.getVersion() < 35)
+                {
+                    try
+                    {
+                        mDb.execSQL("update messages set flags = replace(flags, 'X_NO_SEEN_INFO', 'X_BAD_FLAG')");
+                    }
+                    catch (SQLiteException e)
+                    {
+                        Log.e(K9.LOG_TAG, "Unable to get rid of obsolete flag X_NO_SEEN_INFO", e);
+                    }
+                }
 
 
             }
@@ -252,37 +284,47 @@ public class LocalStore extends Store implements Serializable
 
     public void compact() throws MessagingException
     {
-        Log.i(K9.LOG_TAG, "Before prune size = " + getSize());
+        if (K9.DEBUG)
+            Log.i(K9.LOG_TAG, "Before prune size = " + getSize());
 
         pruneCachedAttachments();
-        Log.i(K9.LOG_TAG, "After prune / before compaction size = " + getSize());
+        if (K9.DEBUG)
+            Log.i(K9.LOG_TAG, "After prune / before compaction size = " + getSize());
 
         mDb.execSQL("VACUUM");
-        Log.i(K9.LOG_TAG, "After compaction size = " + getSize());
+        if (K9.DEBUG)
+            Log.i(K9.LOG_TAG, "After compaction size = " + getSize());
     }
 
 
     public void clear() throws MessagingException
     {
-        Log.i(K9.LOG_TAG, "Before prune size = " + getSize());
+        if (K9.DEBUG)
+            Log.i(K9.LOG_TAG, "Before prune size = " + getSize());
 
         pruneCachedAttachments(true);
+        if (K9.DEBUG)
+        {
+            Log.i(K9.LOG_TAG, "After prune / before compaction size = " + getSize());
 
-        Log.i(K9.LOG_TAG, "After prune / before compaction size = " + getSize());
+            Log.i(K9.LOG_TAG, "Before clear folder count = " + getFolderCount());
+            Log.i(K9.LOG_TAG, "Before clear message count = " + getMessageCount());
 
-        Log.i(K9.LOG_TAG, "Before clear folder count = " + getFolderCount());
-        Log.i(K9.LOG_TAG, "Before clear message count = " + getMessageCount());
-
-        Log.i(K9.LOG_TAG, "After prune / before clear size = " + getSize());
+            Log.i(K9.LOG_TAG, "After prune / before clear size = " + getSize());
+        }
         // don't delete messages that are Local, since there is no copy on the server.
         // Don't delete deleted messages.  They are essentially placeholders for UIDs of messages that have
         // been deleted locally.  They take up insignificant space
         mDb.execSQL("DELETE FROM messages WHERE deleted = 0 and uid not like 'Local%'");
+        mDb.execSQL("update folders set flagged_count = 0, unread_count = 0");
 
         compact();
-        Log.i(K9.LOG_TAG, "After clear message count = " + getMessageCount());
+        if (K9.DEBUG)
+        {
+            Log.i(K9.LOG_TAG, "After clear message count = " + getMessageCount());
 
-        Log.i(K9.LOG_TAG, "After clear size = " + getSize());
+            Log.i(K9.LOG_TAG, "After clear size = " + getSize());
+        }
     }
 
     public int getMessageCount() throws MessagingException
@@ -331,19 +373,18 @@ public class LocalStore extends Store implements Serializable
 
     // TODO this takes about 260-300ms, seems slow.
     @Override
-    public LocalFolder[] getPersonalNamespaces() throws MessagingException
+    public List<? extends Folder> getPersonalNamespaces(boolean forceListAll) throws MessagingException
     {
-        ArrayList<LocalFolder> folders = new ArrayList<LocalFolder>();
+        LinkedList<LocalFolder> folders = new LinkedList<LocalFolder>();
         Cursor cursor = null;
-
 
         try
         {
-            cursor = mDb.rawQuery("SELECT id, name, unread_count, visible_limit, last_updated, status, push_state, last_pushed FROM folders", null);
+            cursor = mDb.rawQuery("SELECT id, name, unread_count, visible_limit, last_updated, status, push_state, last_pushed, flagged_count FROM folders", null);
             while (cursor.moveToNext())
             {
                 LocalFolder folder = new LocalFolder(cursor.getString(1));
-                folder.open(cursor.getInt(0), cursor.getString(1), cursor.getInt(2), cursor.getInt(3), cursor.getLong(4), cursor.getString(5), cursor.getString(6), cursor.getLong(7));
+                folder.open(cursor.getInt(0), cursor.getString(1), cursor.getInt(2), cursor.getInt(3), cursor.getLong(4), cursor.getString(5), cursor.getString(6), cursor.getLong(7), cursor.getInt(8));
 
                 folders.add(folder);
             }
@@ -355,7 +396,7 @@ public class LocalStore extends Store implements Serializable
                 cursor.close();
             }
         }
-        return folders.toArray(new LocalFolder[] {});
+        return folders;
     }
 
     @Override
@@ -404,6 +445,12 @@ public class LocalStore extends Store implements Serializable
         }
     }
 
+    public void recreate()
+    {
+        delete();
+        openOrCreateDataspace(mApplication);
+    }
+
     public void pruneCachedAttachments() throws MessagingException
     {
         pruneCachedAttachments(false);
@@ -443,7 +490,8 @@ public class LocalStore extends Store implements Serializable
                         {
                             if (cursor.getString(0) == null)
                             {
-                                Log.d(K9.LOG_TAG, "Attachment " + file.getAbsolutePath() + " has no store data, not deleting");
+                                if (K9.DEBUG)
+                                    Log.d(K9.LOG_TAG, "Attachment " + file.getAbsolutePath() + " has no store data, not deleting");
                                 /*
                                  * If the attachment has no store data it is not recoverable, so
                                  * we won't delete it.
@@ -486,7 +534,7 @@ public class LocalStore extends Store implements Serializable
 
     public void resetVisibleLimits()
     {
-        resetVisibleLimits(K9.DEFAULT_VISIBLE_LIMIT);
+        resetVisibleLimits(mAccount.getDisplayCount());
     }
 
     public void resetVisibleLimits(int visibleLimit)
@@ -584,32 +632,124 @@ public class LocalStore extends Store implements Serializable
         }
     }
 
+    @Override
     public boolean isMoveCapable()
     {
         return true;
     }
 
+    @Override
     public boolean isCopyCapable()
     {
         return true;
     }
 
-    public Message[] searchForMessages(MessageRetrievalListener listener, String queryString) throws MessagingException
+    public Message[] searchForMessages(MessageRetrievalListener listener, String[] queryFields, String queryString,
+                                       List<LocalFolder> folders, Message[] messages, final Flag[] requiredFlags, final Flag[] forbiddenFlags) throws MessagingException
     {
+        List<String> args = new LinkedList<String>();
 
-        queryString = "%"+queryString+"%";
+        StringBuilder whereClause = new StringBuilder();
+        if (queryString != null && queryString.length() > 0)
+        {
+            boolean anyAdded = false;
+            String likeString = "%"+queryString+"%";
+            whereClause.append(" AND (");
+            for (String queryField : queryFields)
+            {
+
+                if (anyAdded == true)
+                {
+                    whereClause.append(" OR ");
+                }
+                whereClause.append(queryField + " LIKE ? ");
+                args.add(likeString);
+                anyAdded = true;
+            }
+
+
+            whereClause.append(" )");
+        }
+        if (folders != null && folders.size() > 0)
+        {
+            whereClause.append(" AND folder_id in (");
+            boolean anyAdded = false;
+            for (LocalFolder folder : folders)
+            {
+                if (anyAdded == true)
+                {
+                    whereClause.append(",");
+                }
+                anyAdded = true;
+                whereClause.append("?");
+                args.add(Long.toString(folder.getId()));
+            }
+            whereClause.append(" )");
+        }
+        if (messages != null && messages.length > 0)
+        {
+            whereClause.append(" AND ( ");
+            boolean anyAdded = false;
+            for (Message message : messages)
+            {
+                if (anyAdded == true)
+                {
+                    whereClause.append(" OR ");
+                }
+                anyAdded = true;
+                whereClause.append(" ( uid = ? AND folder_id = ? ) ");
+                args.add(message.getUid());
+                args.add(Long.toString(((LocalFolder)message.getFolder()).getId()));
+            }
+            whereClause.append(" )");
+        }
+        if (forbiddenFlags != null && forbiddenFlags.length > 0)
+        {
+            whereClause.append(" AND (");
+            boolean anyAdded = false;
+            for (Flag flag : forbiddenFlags)
+            {
+                if (anyAdded == true)
+                {
+                    whereClause.append(" AND ");
+                }
+                anyAdded = true;
+                whereClause.append(" flags NOT LIKE ?");
+
+                args.add("%" + flag.toString() + "%");
+            }
+            whereClause.append(" )");
+        }
+        if (requiredFlags != null && requiredFlags.length > 0)
+        {
+            whereClause.append(" AND (");
+            boolean anyAdded = false;
+            for (Flag flag : requiredFlags)
+            {
+                if (anyAdded == true)
+                {
+                    whereClause.append(" OR ");
+                }
+                anyAdded = true;
+                whereClause.append(" flags LIKE ?");
+
+                args.add("%" + flag.toString() + "%");
+            }
+            whereClause.append(" )");
+        }
+
+        if (K9.DEBUG)
+        {
+            Log.v(K9.LOG_TAG, "whereClause = " + whereClause.toString());
+            Log.v(K9.LOG_TAG, "args = " + args);
+        }
         return getMessages(
                    listener,
                    null,
                    "SELECT "
                    + GET_MESSAGES_COLS
-                   + "FROM messages WHERE deleted = 0 AND (html_content LIKE ? OR subject LIKE ? OR sender_list LIKE ?) ORDER BY date DESC"
-                   , new String[]
-                   {
-                       queryString,
-                       queryString,
-                       queryString
-                   }
+                   + "FROM messages WHERE deleted = 0 " + whereClause.toString() + " ORDER BY date DESC"
+                   , args.toArray(new String[0])
                );
     }
     /*
@@ -631,7 +771,6 @@ public class LocalStore extends Store implements Serializable
 
 
             int i = 0;
-            ArrayList<LocalMessage> messagesForHeaders = new ArrayList<LocalMessage>();
             while (cursor.moveToNext())
             {
                 LocalMessage message = new LocalMessage(null, folder);
@@ -667,6 +806,7 @@ public class LocalStore extends Store implements Serializable
         private String mName = null;
         private long mFolderId = -1;
         private int mUnreadMessageCount = -1;
+        private int mFlaggedMessageCount = -1;
         private int mVisibleLimit = -1;
         private FolderClass displayClass = FolderClass.NO_CLASS;
         private FolderClass syncClass = FolderClass.INHERITED;
@@ -674,6 +814,7 @@ public class LocalStore extends Store implements Serializable
         private boolean inTopGroup = false;
         private String prefId = null;
         private String mPushState = null;
+        private boolean mIntegrate = false;
 
 
         public LocalFolder(String name)
@@ -713,7 +854,7 @@ public class LocalStore extends Store implements Serializable
             try
             {
                 String baseQuery =
-                    "SELECT id, name,unread_count, visible_limit, last_updated, status, push_state, last_pushed FROM folders ";
+                    "SELECT id, name,unread_count, visible_limit, last_updated, status, push_state, last_pushed, flagged_count FROM folders ";
                 if (mName != null)
                 {
                     cursor = mDb.rawQuery(baseQuery + "where folders.name = ?", new String[] { mName });
@@ -730,11 +871,12 @@ public class LocalStore extends Store implements Serializable
                     int folderId = cursor.getInt(0);
                     if (folderId > 0)
                     {
-                        open(folderId, cursor.getString(1), cursor.getInt(2), cursor.getInt(3), cursor.getLong(4), cursor.getString(5), cursor.getString(6), cursor.getLong(7));
+                        open(folderId, cursor.getString(1), cursor.getInt(2), cursor.getInt(3), cursor.getLong(4), cursor.getString(5), cursor.getString(6), cursor.getLong(7), cursor.getInt(8));
                     }
                 }
                 else
                 {
+                    Log.w(K9.LOG_TAG, "Creating folder " + getName() + " with existing id " + getId());
                     create(FolderType.HOLDS_MESSAGES);
                     open(mode);
                 }
@@ -748,13 +890,14 @@ public class LocalStore extends Store implements Serializable
             }
         }
 
-        private void open(int id, String name, int unreadCount, int visibleLimit, long lastChecked, String status, String pushState, long lastPushed) throws MessagingException
+        private void open(int id, String name, int unreadCount, int visibleLimit, long lastChecked, String status, String pushState, long lastPushed, int flaggedCount) throws MessagingException
         {
             mFolderId = id;
             mName = name;
             mUnreadMessageCount = unreadCount;
             mVisibleLimit = visibleLimit;
             mPushState = pushState;
+            mFlaggedMessageCount = flaggedCount;
             super.setStatus(status);
             // Only want to set the local variable stored in the super class.  This class
             // does a DB update on setLastChecked
@@ -819,11 +962,12 @@ public class LocalStore extends Store implements Serializable
             mDb.execSQL("INSERT INTO folders (name, visible_limit) VALUES (?, ?)", new Object[]
                         {
                             mName,
-                            K9.DEFAULT_VISIBLE_LIMIT
+                            mAccount.getDisplayCount()
                         });
             return true;
         }
 
+        @Override
         public boolean create(FolderType type, int visibleLimit) throws MessagingException
         {
             if (exists())
@@ -876,6 +1020,12 @@ public class LocalStore extends Store implements Serializable
             return mUnreadMessageCount;
         }
 
+        @Override
+        public int getFlaggedMessageCount() throws MessagingException
+        {
+            open(OpenMode.READ_WRITE);
+            return mFlaggedMessageCount;
+        }
 
         public void setUnreadMessageCount(int unreadMessageCount) throws MessagingException
         {
@@ -885,6 +1035,15 @@ public class LocalStore extends Store implements Serializable
                         new Object[] { mUnreadMessageCount, mFolderId });
         }
 
+        public void setFlaggedMessageCount(int flaggedMessageCount) throws MessagingException
+        {
+            open(OpenMode.READ_WRITE);
+            mFlaggedMessageCount = Math.max(0, flaggedMessageCount);
+            mDb.execSQL("UPDATE folders SET flagged_count = ? WHERE id = ?",
+                        new Object[] { mFlaggedMessageCount, mFolderId });
+        }
+
+        @Override
         public void setLastChecked(long lastChecked) throws MessagingException
         {
             open(OpenMode.READ_WRITE);
@@ -893,6 +1052,7 @@ public class LocalStore extends Store implements Serializable
                         new Object[] { lastChecked, mFolderId });
         }
 
+        @Override
         public void setLastPush(long lastChecked) throws MessagingException
         {
             open(OpenMode.READ_WRITE);
@@ -931,6 +1091,7 @@ public class LocalStore extends Store implements Serializable
                         new Object[] { mVisibleLimit, mFolderId });
         }
 
+        @Override
         public void setStatus(String status) throws MessagingException
         {
             open(OpenMode.READ_WRITE);
@@ -974,6 +1135,7 @@ public class LocalStore extends Store implements Serializable
 
         }
 
+        @Override
         public FolderClass getPushClass()
         {
             if (FolderClass.INHERITED == pushClass)
@@ -1006,6 +1168,15 @@ public class LocalStore extends Store implements Serializable
             this.pushClass = pushClass;
         }
 
+        public boolean isIntegrate()
+        {
+            return mIntegrate;
+        }
+        public void setIntegrate(boolean integrate)
+        {
+            mIntegrate = integrate;
+        }
+
         private String getPrefId() throws MessagingException
         {
             open(OpenMode.READ_WRITE);
@@ -1028,6 +1199,7 @@ public class LocalStore extends Store implements Serializable
             editor.remove(id + ".syncMode");
             editor.remove(id + ".pushMode");
             editor.remove(id + ".inTopGroup");
+            editor.remove(id + ".integrate");
 
             editor.commit();
         }
@@ -1066,8 +1238,20 @@ public class LocalStore extends Store implements Serializable
             }
             editor.putBoolean(id + ".inTopGroup", inTopGroup);
 
+            editor.putBoolean(id + ".integrate", mIntegrate);
+
             editor.commit();
         }
+
+
+        public FolderClass getDisplayClass(Preferences preferences) throws MessagingException
+        {
+            String id = getPrefId();
+            return FolderClass.valueOf(preferences.getPreferences().getString(id + ".displayMode",
+                                       FolderClass.NO_CLASS.name()));
+        }
+
+        @Override
         public void refresh(Preferences preferences) throws MessagingException
         {
 
@@ -1114,10 +1298,12 @@ public class LocalStore extends Store implements Serializable
 
             FolderClass defPushClass = FolderClass.SECOND_CLASS;
             boolean defInTopGroup = false;
+            boolean defIntegrate = false;
             if (K9.INBOX.equals(getName()))
             {
                 defPushClass =  FolderClass.FIRST_CLASS;
                 defInTopGroup = true;
+                defIntegrate = true;
             }
 
             try
@@ -1136,6 +1322,7 @@ public class LocalStore extends Store implements Serializable
                 pushClass = FolderClass.INHERITED;
             }
             inTopGroup = preferences.getPreferences().getBoolean(id + ".inTopGroup", defInTopGroup);
+            mIntegrate = preferences.getPreferences().getBoolean(id + ".integrate", defIntegrate);
 
         }
 
@@ -1258,7 +1445,7 @@ public class LocalStore extends Store implements Serializable
         }
 
         @Override
-        public Message[] getMessages(int start, int end, MessageRetrievalListener listener)
+        public Message[] getMessages(int start, int end, Date earliestDate, MessageRetrievalListener listener)
         throws MessagingException
         {
             open(OpenMode.READ_WRITE);
@@ -1266,6 +1453,13 @@ public class LocalStore extends Store implements Serializable
                 "LocalStore.getMessages(int, int, MessageRetrievalListener) not yet implemented");
         }
 
+        /**
+         * Populate the header fields of the given list of messages by reading
+         * the saved header data from the database.
+         *
+         * @param messages
+         *            The messages whose headers should be loaded.
+         */
         private void populateHeaders(List<LocalMessage> messages)
         {
             Cursor cursor = null;
@@ -1426,6 +1620,12 @@ public class LocalStore extends Store implements Serializable
                     lDestFolder.setUnreadMessageCount(lDestFolder.getUnreadMessageCount() + 1);
                 }
 
+                if (message.isSet(Flag.FLAGGED))
+                {
+                    setFlaggedMessageCount(getFlaggedMessageCount() - 1);
+                    lDestFolder.setFlaggedMessageCount(lDestFolder.getFlaggedMessageCount() + 1);
+                }
+
                 String oldUID = message.getUid();
 
                 if (K9.DEBUG)
@@ -1454,6 +1654,11 @@ public class LocalStore extends Store implements Serializable
          * assigned and it matches the uid of an existing message then this message will replace the
          * old message. It is implemented as a delete/insert. This functionality is used in saving
          * of drafts and re-synchronization of updated server messages.
+         *
+         * NOTE that although this method is located in the LocalStore class, it is not guaranteed
+         * that the messages supplied as parameters are actually {@link LocalMessage} instances (in
+         * fact, in most cases, they are not). Therefore, if you want to make local changes only to a
+         * message, retrieve the appropriate local message instance first (if it already exists).
          */
         @Override
         public void appendMessages(Message[] messages) throws MessagingException
@@ -1466,6 +1671,11 @@ public class LocalStore extends Store implements Serializable
          * assigned and it matches the uid of an existing message then this message will replace the
          * old message. It is implemented as a delete/insert. This functionality is used in saving
          * of drafts and re-synchronization of updated server messages.
+         *
+         * NOTE that although this method is located in the LocalStore class, it is not guaranteed
+         * that the messages supplied as parameters are actually {@link LocalMessage} instances (in
+         * fact, in most cases, they are not). Therefore, if you want to make local changes only to a
+         * message, retrieve the appropriate local message instance first (if it already exists).
          */
         private void appendMessages(Message[] messages, boolean copy) throws MessagingException
         {
@@ -1492,6 +1702,10 @@ public class LocalStore extends Store implements Serializable
                     if (oldMessage != null && oldMessage.isSet(Flag.SEEN) == false)
                     {
                         setUnreadMessageCount(getUnreadMessageCount() - 1);
+                    }
+                    if (oldMessage != null && oldMessage.isSet(Flag.FLAGGED) == true)
+                    {
+                        setFlaggedMessageCount(getFlaggedMessageCount() - 1);
                     }
                     /*
                      * The message may already exist in this Folder, so delete it first.
@@ -1570,6 +1784,10 @@ public class LocalStore extends Store implements Serializable
                     if (message.isSet(Flag.SEEN) == false)
                     {
                         setUnreadMessageCount(getUnreadMessageCount() + 1);
+                    }
+                    if (message.isSet(Flag.FLAGGED) == true)
+                    {
+                        setFlaggedMessageCount(getFlaggedMessageCount() + 1);
                     }
                 }
                 catch (Exception e)
@@ -1674,12 +1892,19 @@ public class LocalStore extends Store implements Serializable
             }
         }
 
-        private void saveHeaders(long id, MimeMessage message)
+        /**
+         * Save the headers of the given message. Note that the message is not
+         * necessarily a {@link LocalMessage} instance.
+         */
+        private void saveHeaders(long id, MimeMessage message) throws MessagingException
         {
+            boolean saveAllHeaders = mAccount.isSaveAllHeaders();
+            boolean gotAdditionalHeaders = false;
+
             deleteHeaders(id);
             for (String name : message.getHeaderNames())
             {
-                if (HEADERS_TO_SAVE.contains(name))
+                if (saveAllHeaders || HEADERS_TO_SAVE.contains(name))
                 {
                     String[] values = message.getHeader(name);
                     for (String value : values)
@@ -1691,6 +1916,22 @@ public class LocalStore extends Store implements Serializable
                         mDb.insert("headers", "name", cv);
                     }
                 }
+                else
+                {
+                    gotAdditionalHeaders = true;
+                }
+            }
+
+            if (!gotAdditionalHeaders)
+            {
+                // Remember that all headers for this message have been saved, so it is
+                // not necessary to download them again in case the user wants to see all headers.
+                List<Flag> appendedFlags = new ArrayList<Flag>();
+                appendedFlags.addAll(Arrays.asList(message.getFlags()));
+                appendedFlags.add(Flag.X_GOT_ALL_HEADERS);
+
+                mDb.execSQL("UPDATE messages " + "SET flags = ? " + " WHERE id = ?", new Object[]
+                            { Utility.combine(appendedFlags.toArray(), ',').toUpperCase(), id });
             }
         }
 
@@ -1771,6 +2012,8 @@ public class LocalStore extends Store implements Serializable
                                     MimeHeader.HEADER_ANDROID_ATTACHMENT_STORE_DATA), ',');
 
             String name = MimeUtility.getHeaderParameter(attachment.getContentType(), "name");
+            String contentId = MimeUtility.getHeaderParameter(attachment.getContentId(), null);
+
             String contentDisposition = MimeUtility.unfoldAndDecode(attachment.getDisposition());
             if (name == null && contentDisposition != null)
             {
@@ -1781,6 +2024,7 @@ public class LocalStore extends Store implements Serializable
                 ContentValues cv = new ContentValues();
                 cv.put("message_id", messageId);
                 cv.put("content_uri", contentUri != null ? contentUri.toString() : null);
+                // cv.put("content_id", contentId != null ? contentId.toString() : null);
                 cv.put("store_data", storeData);
                 cv.put("size", size);
                 cv.put("name", name);
@@ -1800,7 +2044,7 @@ public class LocalStore extends Store implements Serializable
                     new String[] { Long.toString(attachmentId) });
             }
 
-            if (tempAttachmentFile != null)
+            if (attachmentId != -1 && tempAttachmentFile != null)
             {
                 File attachmentFile = new File(mAttachmentsDir, Long.toString(attachmentId));
                 tempAttachmentFile.renameTo(attachmentFile);
@@ -1817,7 +2061,30 @@ public class LocalStore extends Store implements Serializable
                     new String[] { Long.toString(attachmentId) });
             }
 
-            if (attachment instanceof LocalAttachmentBodyPart)
+            /* The message has attachment with Content-ID */
+            if (contentId != null && contentUri != null)
+            {
+                Cursor cursor = null;
+                cursor = mDb.query("messages", new String[] { "html_content" }, "id = ?", new String[] { Long.toString(messageId) }, null, null, null);
+                try {
+                    if (cursor.moveToNext())
+                    {
+                        String new_html;
+
+                        new_html = cursor.getString(0);
+                        new_html = new_html.replaceAll("cid:" + contentId, contentUri.toString());
+
+                        ContentValues cv = new ContentValues();
+                        cv.put("html_content", new_html);
+                        mDb.update("messages", cv, "id = ?", new String[] { Long.toString(messageId) });
+                    }
+                }
+                finally {
+                    if (cursor != null) { cursor.close(); }
+                }
+            }
+
+            if (attachmentId != -1 && attachment instanceof LocalAttachmentBodyPart)
             {
                 ((LocalAttachmentBodyPart) attachment).setAttachmentId(attachmentId);
             }
@@ -1871,14 +2138,15 @@ public class LocalStore extends Store implements Serializable
                         {
                             Long.toString(mFolderId), new Long(cutoff)
                         });
-            resetUnreadCount();
+            resetUnreadAndFlaggedCounts();
         }
 
-        private void resetUnreadCount()
+        private void resetUnreadAndFlaggedCounts()
         {
             try
             {
                 int newUnread = 0;
+                int newFlagged = 0;
                 Message[] messages = getMessages(null);
                 for (Message message : messages)
                 {
@@ -1886,14 +2154,20 @@ public class LocalStore extends Store implements Serializable
                     {
                         newUnread++;
                     }
+                    if (message.isSet(Flag.FLAGGED) == true)
+                    {
+                        newFlagged++;
+                    }
                 }
                 setUnreadMessageCount(newUnread);
+                setFlaggedMessageCount(newFlagged);
             }
             catch (Exception e)
             {
                 Log.e(K9.LOG_TAG, "Unable to fetch all messages from LocalStore", e);
             }
         }
+
 
         @Override
         public void delete(boolean recurse) throws MessagingException
@@ -2014,18 +2288,19 @@ public class LocalStore extends Store implements Serializable
                 return null;
             }
 
-            text = text.replaceAll("^.*:","");
+            text = text.replaceAll("(?ms)^-----BEGIN PGP SIGNED MESSAGE-----.(Hash:\\s*?.*?$)?","");
+            text = text.replaceAll("^.*\\w.*:","");
             text = text.replaceAll("(?m)^>.*$","");
             text = text.replaceAll("^On .*wrote.?$","");
             text = text.replaceAll("(\\r|\\n)+"," ");
             text = text.replaceAll("\\s+"," ");
-            if (text.length() <= 160)
+            if (text.length() <= 250)
             {
                 return text;
             }
             else
             {
-                text = text.substring(0,160);
+                text = text.substring(0,250);
                 return text;
             }
 
@@ -2038,9 +2313,11 @@ public class LocalStore extends Store implements Serializable
                 html = htmlifyString(text);
             }
 
+            html = convertEmoji2ImgForDocomo(html);
+
             if (html.indexOf("cid:") != -1)
             {
-                return html.replaceAll("cid:", "http://cid/");
+                return html; // return html.replaceAll("cid:", "http://cid/");
             }
             else
             {
@@ -2085,9 +2362,11 @@ public class LocalStore extends Store implements Serializable
             text = text.replaceAll("(?m)^([^\r\n]{4,}[\\s\\w,:;+/])(?:\r\n|\n|\r)(?=[a-z]\\S{0,10}[\\s\\n\\r])","$1 ");
             text = text.replaceAll("(?m)(\r\n|\n|\r){4,}","\n\n");
 
+
             Matcher m = Regex.WEB_URL_PATTERN.matcher(text);
             StringBuffer sb = new StringBuffer(text.length() + 512);
-            sb.append("<html><body><pre style=\"white-space: pre-wrap; word-wrap:break-word; \">");
+            sb.append("<html><head></head><body>");
+            sb.append(htmlifyMessageHeader());
             while (m.find())
             {
                 int start = m.start();
@@ -2105,10 +2384,837 @@ public class LocalStore extends Store implements Serializable
 
 
             m.appendTail(sb);
-            sb.append("</pre></body></html>");
+            sb.append(htmlifyMessageFooter());
+            sb.append("</body></html>");
             text = sb.toString();
 
             return text;
+        }
+
+        private String htmlifyMessageHeader()
+        {
+            if (K9.messageViewFixedWidthFont())
+            {
+                return "<pre style=\"white-space: pre-wrap; word-wrap:break-word; \">";
+            }
+            else
+            {
+                return "<div style=\"white-space: pre-wrap; word-wrap:break-word; \">";
+            }
+        }
+
+
+        private String htmlifyMessageFooter()
+        {
+            if (K9.messageViewFixedWidthFont())
+            {
+                return "</pre>";
+            }
+            else
+            {
+                return "</div>";
+            }
+        }
+
+        public String convertEmoji2ImgForDocomo(String html)
+        {
+            StringReader reader = new StringReader(html);
+            StringBuilder buff = new StringBuilder(html.length() + 512);
+            int c = 0;
+            try
+            {
+                while ((c = reader.read()) != -1)
+                {
+                    switch (c)
+                    {
+                        // Emoji
+                        case 0xE63E: // Fine
+                            buff.append("<img src=\"file:///android_asset/emoticons/sun.gif\"/>");
+                            break;
+                        case 0xE63F: // Cloudy
+                            buff.append("<img src=\"file:///android_asset/emoticons/cloud.gif\"/>");
+                            break;
+                        case 0xE640: // Rain
+                            buff.append("<img src=\"file:///android_asset/emoticons/rain.gif\"/>");
+                            break;
+                        case 0xE641: // Snow
+                            buff.append("<img src=\"file:///android_asset/emoticons/snow.gif\"/>");
+                            break;
+                        case 0xE642: // Thunder
+                            buff.append("<img src=\"file:///android_asset/emoticons/thunder.gif\"/>");
+                            break;
+                        case 0xE643: // Typhoon
+                            buff.append("<img src=\"file:///android_asset/emoticons/typhoon.gif\"/>");
+                            break;
+                        case 0xE644: // Fog
+                            buff.append("<img src=\"file:///android_asset/emoticons/mist.gif\"/>");
+                            break;
+                        case 0xE645: // Drizzle
+                            buff.append("<img src=\"file:///android_asset/emoticons/sprinkle.gif\"/>");
+                            break;
+
+                        // Zodiacal symbol
+                        case 0xE646: // Aries
+                            buff.append("<img src=\"file:///android_asset/emoticons/aries.gif\"/>");
+                            break;
+                        case 0xE647: // Taurus
+                            buff.append("<img src=\"file:///android_asset/emoticons/taurus.gif\"/>");
+                            break;
+                        case 0xE648: // Gemini
+                            buff.append("<img src=\"file:///android_asset/emoticons/gemini.gif\"/>");
+                            break;
+                        case 0xE649: // Cancer
+                            buff.append("<img src=\"file:///android_asset/emoticons/cancer.gif\"/>");
+                            break;
+                        case 0xE64A: // Leo
+                            buff.append("<img src=\"file:///android_asset/emoticons/leo.gif\"/>");
+                            break;
+                        case 0xE64B: // Virgo
+                            buff.append("<img src=\"file:///android_asset/emoticons/virgo.gif\"/>");
+                            break;
+                        case 0xE64C: // Libra
+                            buff.append("<img src=\"file:///android_asset/emoticons/libra.gif\"/>");
+                            break;
+                        case 0xE64D: // Scorpio
+                            buff.append("<img src=\"file:///android_asset/emoticons/scorpius.gif\"/>");
+                            break;
+                        case 0xE64E: // Sagittarius
+                            buff.append("<img src=\"file:///android_asset/emoticons/sagittarius.gif\"/>");
+                            break;
+                        case 0xE64F: // Capricorn
+                            buff.append("<img src=\"file:///android_asset/emoticons/capricornus.gif\"/>");
+                            break;
+                        case 0xE650: // Aquarius
+                            buff.append("<img src=\"file:///android_asset/emoticons/aquarius.gif\"/>");
+                            break;
+                        case 0xE651: // Pisces
+                            buff.append("<img src=\"file:///android_asset/emoticons/pisces.gif\"/>");
+                            break;
+
+                        case 0xE652:
+                            buff.append("<img src=\"file:///android_asset/emoticons/sports.gif\"/>");
+                            break;
+                        case 0xE653:
+                            buff.append("<img src=\"file:///android_asset/emoticons/baseball.gif\"/>");
+                            break;
+                        case 0xE654:
+                            buff.append("<img src=\"file:///android_asset/emoticons/golf.gif\"/>");
+                            break;
+                        case 0xE655:
+                            buff.append("<img src=\"file:///android_asset/emoticons/tennis.gif\"/>");
+                            break;
+                        case 0xE656:
+                            buff.append("<img src=\"file:///android_asset/emoticons/soccer.gif\"/>");
+                            break;
+                        case 0xE657:
+                            buff.append("<img src=\"file:///android_asset/emoticons/ski.gif\"/>");
+                            break;
+                        case 0xE658:
+                            buff.append("<img src=\"file:///android_asset/emoticons/basketball.gif\"/>");
+                            break;
+                        case 0xE659:
+                            buff.append("<img src=\"file:///android_asset/emoticons/motorsports.gif\"/>");
+                            break;
+                        case 0xE65A:
+                            buff.append("<img src=\"file:///android_asset/emoticons/pocketbell.gif\"/>");
+                            break;
+                        case 0xE65B:
+                            buff.append("<img src=\"file:///android_asset/emoticons/train.gif\"/>");
+                            break;
+                        case 0xE65C:
+                            buff.append("<img src=\"file:///android_asset/emoticons/subway.gif\"/>");
+                            break;
+                        case 0xE65D:
+                            buff.append("<img src=\"file:///android_asset/emoticons/bullettrain.gif\"/>");
+                            break;
+                        case 0xE65E:
+                            buff.append("<img src=\"file:///android_asset/emoticons/car.gif\"/>");
+                            break;
+                        case 0xE65F:
+                            buff.append("<img src=\"file:///android_asset/emoticons/rvcar.gif\"/>");
+                            break;
+                        case 0xE660:
+                            buff.append("<img src=\"file:///android_asset/emoticons/bus.gif\"/>");
+                            break;
+                        case 0xE661:
+                            buff.append("<img src=\"file:///android_asset/emoticons/ship.gif\"/>");
+                            break;
+                        case 0xE662:
+                            buff.append("<img src=\"file:///android_asset/emoticons/airplane.gif\"/>");
+                            break;
+                        case 0xE663:
+                            buff.append("<img src=\"file:///android_asset/emoticons/house.gif\"/>");
+                            break;
+                        case 0xE664:
+                            buff.append("<img src=\"file:///android_asset/emoticons/building.gif\"/>");
+                            break;
+                        case 0xE665:
+                            buff.append("<img src=\"file:///android_asset/emoticons/postoffice.gif\"/>");
+                            break;
+                        case 0xE666:
+                            buff.append("<img src=\"file:///android_asset/emoticons/hospital.gif\"/>");
+                            break;
+                        case 0xE667:
+                            buff.append("<img src=\"file:///android_asset/emoticons/bank.gif\"/>");
+                            break;
+                        case 0xE668:
+                            buff.append("<img src=\"file:///android_asset/emoticons/atm.gif\"/>");
+                            break;
+                        case 0xE669:
+                            buff.append("<img src=\"file:///android_asset/emoticons/hotel.gif\"/>");
+                            break;
+                        case 0xE66A:
+                            buff.append("<img src=\"file:///android_asset/emoticons/24hours.gif\"/>");
+                            break;
+                        case 0xE66B:
+                            buff.append("<img src=\"file:///android_asset/emoticons/gasstation.gif\"/>");
+                            break;
+                        case 0xE66C:
+                            buff.append("<img src=\"file:///android_asset/emoticons/parking.gif\"/>");
+                            break;
+                        case 0xE66D:
+                            buff.append("<img src=\"file:///android_asset/emoticons/signaler.gif\"/>");
+                            break;
+                        case 0xE66E:
+                            buff.append("<img src=\"file:///android_asset/emoticons/toilet.gif\"/>");
+                            break;
+                        case 0xE66F:
+                            buff.append("<img src=\"file:///android_asset/emoticons/restaurant.gif\"/>");
+                            break;
+                        case 0xE670:
+                            buff.append("<img src=\"file:///android_asset/emoticons/cafe.gif\"/>");
+                            break;
+                        case 0xE671:
+                            buff.append("<img src=\"file:///android_asset/emoticons/bar.gif\"/>");
+                            break;
+                        case 0xE672:
+                            buff.append("<img src=\"file:///android_asset/emoticons/beer.gif\"/>");
+                            break;
+                        case 0xE673:
+                            buff.append("<img src=\"file:///android_asset/emoticons/fastfood.gif\"/>");
+                            break;
+                        case 0xE674:
+                            buff.append("<img src=\"file:///android_asset/emoticons/boutique.gif\"/>");
+                            break;
+                        case 0xE675: // Hairdresser
+                            buff.append("<img src=\"file:///android_asset/emoticons/hairsalon.gif\"/>");
+                            break;
+                        case 0xE676:
+                            buff.append("<img src=\"file:///android_asset/emoticons/karaoke.gif\"/>");
+                            break;
+                        case 0xE677:
+                            buff.append("<img src=\"file:///android_asset/emoticons/movie.gif\"/>");
+                            break;
+                        case 0xE678:
+                            buff.append("<img src=\"file:///android_asset/emoticons/upwardright.gif\"/>");
+                            break;
+                        case 0xE679:
+                            buff.append("<img src=\"file:///android_asset/emoticons/carouselpony.gif\"/>");
+                            break;
+                        case 0xE67A:
+                            buff.append("<img src=\"file:///android_asset/emoticons/music.gif\"/>");
+                            break;
+                        case 0xE67B:
+                            buff.append("<img src=\"file:///android_asset/emoticons/art.gif\"/>");
+                            break;
+                        case 0xE67C:
+                            buff.append("<img src=\"file:///android_asset/emoticons/drama.gif\"/>");
+                            break;
+                        case 0xE67D:
+                            buff.append("<img src=\"file:///android_asset/emoticons/event.gif\"/>");
+                            break;
+                        case 0xE67E:
+                            buff.append("<img src=\"file:///android_asset/emoticons/ticket.gif\"/>");
+                            break;
+                        case 0xE67F:
+                            buff.append("<img src=\"file:///android_asset/emoticons/smoking.gif\"/>");
+                            break;
+
+                        case 0xE680:
+                            buff.append("<img src=\"file:///android_asset/emoticons/nosmoking.gif\"/>");
+                            break;
+                        case 0xE681:
+                            buff.append("<img src=\"file:///android_asset/emoticons/camera.gif\"/>");
+                            break;
+                        case 0xE682:
+                            buff.append("<img src=\"file:///android_asset/emoticons/bag.gif\"/>");
+                            break;
+                        case 0xE683:
+                            buff.append("<img src=\"file:///android_asset/emoticons/book.gif\"/>");
+                            break;
+                        case 0xE684:
+                            buff.append("<img src=\"file:///android_asset/emoticons/ribbon.gif\"/>");
+                            break;
+                        case 0xE685:
+                            buff.append("<img src=\"file:///android_asset/emoticons/present.gif\"/>");
+                            break;
+                        case 0xE686:
+                            buff.append("<img src=\"file:///android_asset/emoticons/birthday.gif\"/>");
+                            break;
+                        case 0xE687:
+                            buff.append("<img src=\"file:///android_asset/emoticons/telephone.gif\"/>");
+                            break;
+                        case 0xE688:
+                            buff.append("<img src=\"file:///android_asset/emoticons/mobilephone.gif\"/>");
+                            break;
+                        case 0xE689:
+                            buff.append("<img src=\"file:///android_asset/emoticons/memo.gif\"/>");
+                            break;
+                        case 0xE68A:
+                            buff.append("<img src=\"file:///android_asset/emoticons/tv.gif\"/>");
+                            break;
+                        case 0xE68B:
+                            buff.append("<img src=\"file:///android_asset/emoticons/game.gif\"/>");
+                            break;
+                        case 0xE68C:
+                            buff.append("<img src=\"file:///android_asset/emoticons/cd.gif\"/>");
+                            break;
+                        case 0xE68D:
+                            buff.append("<img src=\"file:///android_asset/emoticons/heart.gif\"/>");
+                            break;
+                        case 0xE68E:
+                            buff.append("<img src=\"file:///android_asset/emoticons/spade.gif\"/>");
+                            break;
+                        case 0xE68F:
+                            buff.append("<img src=\"file:///android_asset/emoticons/diamond.gif\"/>");
+                            break;
+
+                        case 0xE690:
+                            buff.append("<img src=\"file:///android_asset/emoticons/club.gif\"/>");
+                            break;
+                        case 0xE691: // Eyes
+                            buff.append("<img src=\"file:///android_asset/emoticons/eye.gif\"/>");
+                            break;
+                        case 0xE692: // Ear
+                            buff.append("<img src=\"file:///android_asset/emoticons/ear.gif\"/>");
+                            break;
+                        case 0xE693:
+                            buff.append("<img src=\"file:///android_asset/emoticons/rock.gif\"/>");
+                            break;
+                        case 0xE694:
+                            buff.append("<img src=\"file:///android_asset/emoticons/scissors.gif\"/>");
+                            break;
+                        case 0xE695:
+                            buff.append("<img src=\"file:///android_asset/emoticons/paper.gif\"/>");
+                            break;
+                        case 0xE696:
+                            buff.append("<img src=\"file:///android_asset/emoticons/downwardright.gif\"/>");
+                            break;
+                        case 0xE697:
+                            buff.append("<img src=\"file:///android_asset/emoticons/upwardleft.gif\"/>");
+                            break;
+                        case 0xE698:
+                            buff.append("<img src=\"file:///android_asset/emoticons/foot.gif\"/>");
+                            break;
+                        case 0xE699:
+                            buff.append("<img src=\"file:///android_asset/emoticons/shoe.gif\"/>");
+                            break;
+                        case 0xE69A:
+                            buff.append("<img src=\"file:///android_asset/emoticons/eyeglass.gif\"/>");
+                            break;
+                        case 0xE69B:
+                            buff.append("<img src=\"file:///android_asset/emoticons/wheelchair.gif\"/>");
+                            break;
+                        case 0xE69C: // New moon
+                            buff.append("<img src=\"file:///android_asset/emoticons/newmoon.gif\"/>");
+                            break;
+                        case 0xE69D: // Waning moon
+                            buff.append("<img src=\"file:///android_asset/emoticons/moon1.gif\"/>");
+                            break;
+                        case 0xE69E: // Half moon
+                            buff.append("<img src=\"file:///android_asset/emoticons/moon2.gif\"/>");
+                            break;
+                        case 0xE69F: // Crescent moon
+                            buff.append("<img src=\"file:///android_asset/emoticons/moon3.gif\"/>");
+                            break;
+
+                        case 0xE6A0: // Full moon
+                            buff.append("<img src=\"file:///android_asset/emoticons/fullmoon.gif\"/>");
+                            break;
+                        case 0xE6A1:
+                            buff.append("<img src=\"file:///android_asset/emoticons/dog.gif\"/>");
+                            break;
+                        case 0xE6A2:
+                            buff.append("<img src=\"file:///android_asset/emoticons/cat.gif\"/>");
+                            break;
+                        case 0xE6A3:
+                            buff.append("<img src=\"file:///android_asset/emoticons/yacht.gif\"/>");
+                            break;
+                        case 0xE6A4:
+                            buff.append("<img src=\"file:///android_asset/emoticons/xmas.gif\"/>");
+                            break;
+                        case 0xE6A5:
+                            buff.append("<img src=\"file:///android_asset/emoticons/downwardleft.gif\"/>");
+                            break;
+
+                        case 0xE6AC:
+                            buff.append("<img src=\"file:///android_asset/emoticons/slate.gif\"/>");
+                            break;
+                        case 0xE6AD:
+                            buff.append("<img src=\"file:///android_asset/emoticons/pouch.gif\"/>");
+                            break;
+                        case 0xE6AE:
+                            buff.append("<img src=\"file:///android_asset/emoticons/pen.gif\"/>");
+                            break;
+
+                        case 0xE6B1: // Silhouette
+                            buff.append("<img src=\"file:///android_asset/emoticons/shadow.gif\"/>");
+                            break;
+                        case 0xE6B2:
+                            buff.append("<img src=\"file:///android_asset/emoticons/chair.gif\"/>");
+                            break;
+                        case 0xE6B3: // Night
+                            buff.append("<img src=\"file:///android_asset/emoticons/night.gif\"/>");
+                            break;
+
+                        case 0xE6B7:
+                            buff.append("<img src=\"file:///android_asset/emoticons/soon.gif\"/>");
+                            break;
+                        case 0xE6B8:
+                            buff.append("<img src=\"file:///android_asset/emoticons/on.gif\"/>");
+                            break;
+                        case 0xE6B9:
+                            buff.append("<img src=\"file:///android_asset/emoticons/end.gif\"/>");
+                            break;
+                        case 0xE6BA: // Clock
+                            buff.append("<img src=\"file:///android_asset/emoticons/clock.gif\"/>");
+                            break;
+
+                        case 0xE6CE:
+                            buff.append("<img src=\"file:///android_asset/emoticons/phoneto.gif\"/>");
+                            break;
+                        case 0xE6CF:
+                            buff.append("<img src=\"file:///android_asset/emoticons/mailto.gif\"/>");
+                            break;
+
+                        case 0xE6D0:
+                            buff.append("<img src=\"file:///android_asset/emoticons/faxto.gif\"/>");
+                            break;
+                        case 0xE6D1:
+                            buff.append("<img src=\"file:///android_asset/emoticons/info01.gif\"/>");
+                            break;
+                        case 0xE6D2:
+                            buff.append("<img src=\"file:///android_asset/emoticons/info02.gif\"/>");
+                            break;
+                        case 0xE6D3:
+                            buff.append("<img src=\"file:///android_asset/emoticons/mail.gif\"/>");
+                            break;
+                        case 0xE6D4:
+                            buff.append("<img src=\"file:///android_asset/emoticons/by-d.gif\"/>");
+                            break;
+                        case 0xE6D5:
+                            buff.append("<img src=\"file:///android_asset/emoticons/d-point.gif\"/>");
+                            break;
+                        case 0xE6D6:
+                            buff.append("<img src=\"file:///android_asset/emoticons/yen.gif\"/>");
+                            break;
+                        case 0xE6D7:
+                            buff.append("<img src=\"file:///android_asset/emoticons/free.gif\"/>");
+                            break;
+                        case 0xE6D8:
+                            buff.append("<img src=\"file:///android_asset/emoticons/id.gif\"/>");
+                            break;
+                        case 0xE6D9:
+                            buff.append("<img src=\"file:///android_asset/emoticons/key.gif\"/>");
+                            break;
+                        case 0xE6DA:
+                            buff.append("<img src=\"file:///android_asset/emoticons/enter.gif\"/>");
+                            break;
+                        case 0xE6DB:
+                            buff.append("<img src=\"file:///android_asset/emoticons/clear.gif\"/>");
+                            break;
+                        case 0xE6DC:
+                            buff.append("<img src=\"file:///android_asset/emoticons/search.gif\"/>");
+                            break;
+                        case 0xE6DD:
+                            buff.append("<img src=\"file:///android_asset/emoticons/new.gif\"/>");
+                            break;
+                        case 0xE6DE:
+                            buff.append("<img src=\"file:///android_asset/emoticons/flag.gif\"/>");
+                            break;
+                        case 0xE6DF:
+                            buff.append("<img src=\"file:///android_asset/emoticons/freedial.gif\"/>");
+                            break;
+
+                        case 0xE6E0:
+                            buff.append("<img src=\"file:///android_asset/emoticons/sharp.gif\"/>");
+                            break;
+                        case 0xE6E1:
+                            buff.append("<img src=\"file:///android_asset/emoticons/mobaq.gif\"/>");
+                            break;
+                        case 0xE6E2:
+                            buff.append("<img src=\"file:///android_asset/emoticons/one.gif\"/>");
+                            break;
+                        case 0xE6E3:
+                            buff.append("<img src=\"file:///android_asset/emoticons/two.gif\"/>");
+                            break;
+                        case 0xE6E4:
+                            buff.append("<img src=\"file:///android_asset/emoticons/three.gif\"/>");
+                            break;
+                        case 0xE6E5:
+                            buff.append("<img src=\"file:///android_asset/emoticons/four.gif\"/>");
+                            break;
+                        case 0xE6E6:
+                            buff.append("<img src=\"file:///android_asset/emoticons/five.gif\"/>");
+                            break;
+                        case 0xE6E7:
+                            buff.append("<img src=\"file:///android_asset/emoticons/six.gif\"/>");
+                            break;
+                        case 0xE6E8:
+                            buff.append("<img src=\"file:///android_asset/emoticons/seven.gif\"/>");
+                            break;
+                        case 0xE6E9:
+                            buff.append("<img src=\"file:///android_asset/emoticons/eight.gif\"/>");
+                            break;
+                        case 0xE6EA:
+                            buff.append("<img src=\"file:///android_asset/emoticons/nine.gif\"/>");
+                            break;
+                        case 0xE6EB:
+                            buff.append("<img src=\"file:///android_asset/emoticons/zero.gif\"/>");
+                            break;
+                        case 0xE6EC: // Black heart
+                            buff.append("<img src=\"file:///android_asset/emoticons/heart01.gif\"/>");
+                            break;
+                        case 0xE6ED:
+                            buff.append("<img src=\"file:///android_asset/emoticons/heart02.gif\"/>");
+                            break;
+                        case 0xE6EE:
+                            buff.append("<img src=\"file:///android_asset/emoticons/heart03.gif\"/>");
+                            break;
+                        case 0xE6EF:
+                            buff.append("<img src=\"file:///android_asset/emoticons/heart04.gif\"/>");
+                            break;
+
+                        case 0xE6F0: // Happy face
+                            buff.append("<img src=\"file:///android_asset/emoticons/happy01.gif\"/>");
+                            break;
+                        case 0xE6F1:
+                            buff.append("<img src=\"file:///android_asset/emoticons/angry.gif\"/>");
+                            break;
+                        case 0xE6F2:
+                            buff.append("<img src=\"file:///android_asset/emoticons/despair.gif\"/>");
+                            break;
+                        case 0xE6F3:
+                            buff.append("<img src=\"file:///android_asset/emoticons/sad.gif\"/>");
+                            break;
+                        case 0xE6F4:
+                            buff.append("<img src=\"file:///android_asset/emoticons/wobbly.gif\"/>");
+                            break;
+                        case 0xE6F5:
+                            buff.append("<img src=\"file:///android_asset/emoticons/up.gif\"/>");
+                            break;
+                        case 0xE6F6:
+                            buff.append("<img src=\"file:///android_asset/emoticons/note.gif\"/>");
+                            break;
+                        case 0xE6F7:
+                            buff.append("<img src=\"file:///android_asset/emoticons/spa.gif\"/>");
+                            break;
+                        case 0xE6F8:
+                            buff.append("<img src=\"file:///android_asset/emoticons/cute.gif\"/>");
+                            break;
+                        case 0xE6F9: // Kiss
+                            buff.append("<img src=\"file:///android_asset/emoticons/kissmark.gif\"/>");
+                            break;
+                        case 0xE6FA:
+                            buff.append("<img src=\"file:///android_asset/emoticons/shine.gif\"/>");
+                            break;
+                        case 0xE6FB:
+                            buff.append("<img src=\"file:///android_asset/emoticons/flair.gif\"/>");
+                            break;
+                        case 0xE6FC:
+                            buff.append("<img src=\"file:///android_asset/emoticons/annoy.gif\"/>");
+                            break;
+                        case 0xE6FD:
+                            buff.append("<img src=\"file:///android_asset/emoticons/punch.gif\"/>");
+                            break;
+                        case 0xE6FE:
+                            buff.append("<img src=\"file:///android_asset/emoticons/bomb.gif\"/>");
+                            break;
+                        case 0xE6FF:
+                            buff.append("<img src=\"file:///android_asset/emoticons/notes.gif\"/>");
+                            break;
+
+                        case 0xE700:
+                            buff.append("<img src=\"file:///android_asset/emoticons/down.gif\"/>");
+                            break;
+                        case 0xE701:
+                            buff.append("<img src=\"file:///android_asset/emoticons/sleepy.gif\"/>");
+                            break;
+                        case 0xE702:
+                            buff.append("<img src=\"file:///android_asset/emoticons/sign01.gif\"/>");
+                            break;
+                        case 0xE703:
+                            buff.append("<img src=\"file:///android_asset/emoticons/sign02.gif\"/>");
+                            break;
+                        case 0xE704:
+                            buff.append("<img src=\"file:///android_asset/emoticons/sign03.gif\"/>");
+                            break;
+                        case 0xE705:
+                            buff.append("<img src=\"file:///android_asset/emoticons/impact.gif\"/>");
+                            break;
+                        case 0xE706:
+                            buff.append("<img src=\"file:///android_asset/emoticons/sweat01.gif\"/>");
+                            break;
+                        case 0xE707:
+                            buff.append("<img src=\"file:///android_asset/emoticons/sweat02.gif\"/>");
+                            break;
+                        case 0xE708:
+                            buff.append("<img src=\"file:///android_asset/emoticons/dash.gif\"/>");
+                            break;
+                        case 0xE709:
+                            buff.append("<img src=\"file:///android_asset/emoticons/sign04.gif\"/>");
+                            break;
+                        case 0xE70A:
+                            buff.append("<img src=\"file:///android_asset/emoticons/sign05.gif\"/>");
+                            break;
+                        case 0xE70B:
+                            buff.append("<img src=\"file:///android_asset/emoticons/ok.gif\"/>");
+                            break;
+                        case 0xE70C:
+                            buff.append("<img src=\"file:///android_asset/emoticons/appli01.gif\"/>");
+                            break;
+                        case 0xE70D:
+                            buff.append("<img src=\"file:///android_asset/emoticons/appli02.gif\"/>");
+                            break;
+                        case 0xE70E:
+                            buff.append("<img src=\"file:///android_asset/emoticons/t-shirt.gif\"/>");
+                            break;
+                        case 0xE70F:
+                            buff.append("<img src=\"file:///android_asset/emoticons/moneybag.gif\"/>");
+                            break;
+
+                        case 0xE710: // Make-up
+                            buff.append("<img src=\"file:///android_asset/emoticons/rouge.gif\"/>");
+                            break;
+                        case 0xE711:
+                            buff.append("<img src=\"file:///android_asset/emoticons/denim.gif\"/>");
+                            break;
+                        case 0xE712:
+                            buff.append("<img src=\"file:///android_asset/emoticons/snowboard.gif\"/>");
+                            break;
+                        case 0xE713:
+                            buff.append("<img src=\"file:///android_asset/emoticons/bell.gif\"/>");
+                            break;
+                        case 0xE714:
+                            buff.append("<img src=\"file:///android_asset/emoticons/door.gif\"/>");
+                            break;
+                        case 0xE715:
+                            buff.append("<img src=\"file:///android_asset/emoticons/dollar.gif\"/>");
+                            break;
+                        case 0xE716:
+                            buff.append("<img src=\"file:///android_asset/emoticons/pc.gif\"/>");
+                            break;
+                        case 0xE717:
+                            buff.append("<img src=\"file:///android_asset/emoticons/loveletter.gif\"/>");
+                            break;
+                        case 0xE718:
+                            buff.append("<img src=\"file:///android_asset/emoticons/wrench.gif\"/>");
+                            break;
+                        case 0xE719:
+                            buff.append("<img src=\"file:///android_asset/emoticons/pencil.gif\"/>");
+                            break;
+                        case 0xE71A:
+                            buff.append("<img src=\"file:///android_asset/emoticons/crown.gif\"/>");
+                            break;
+                        case 0xE71B:
+                            buff.append("<img src=\"file:///android_asset/emoticons/ring.gif\"/>");
+                            break;
+                        case 0xE71C: // Sandglass
+                            buff.append("<img src=\"file:///android_asset/emoticons/sandclock.gif\"/>");
+                            break;
+                        case 0xE71D:
+                            buff.append("<img src=\"file:///android_asset/emoticons/bicycle.gif\"/>");
+                            break;
+                        case 0xE71E:
+                            buff.append("<img src=\"file:///android_asset/emoticons/japanesetea.gif\"/>");
+                            break;
+                        case 0xE71F: // Wrist watch
+                            buff.append("<img src=\"file:///android_asset/emoticons/watch.gif\"/>");
+                            break;
+
+                        case 0xE720:
+                            buff.append("<img src=\"file:///android_asset/emoticons/think.gif\"/>");
+                            break;
+                        case 0xE721:
+                            buff.append("<img src=\"file:///android_asset/emoticons/confident.gif\"/>");
+                            break;
+                        case 0xE722:
+                            buff.append("<img src=\"file:///android_asset/emoticons/coldsweats01.gif\"/>");
+                            break;
+                        case 0xE723:
+                            buff.append("<img src=\"file:///android_asset/emoticons/coldsweats02.gif\"/>");
+                            break;
+                        case 0xE724: // Pouting face
+                            buff.append("<img src=\"file:///android_asset/emoticons/pout.gif\"/>");
+                            break;
+                        case 0xE725:
+                            buff.append("<img src=\"file:///android_asset/emoticons/gawk.gif\"/>");
+                            break;
+                        case 0xE726:
+                            buff.append("<img src=\"file:///android_asset/emoticons/lovely.gif\"/>");
+                            break;
+                        case 0xE727:
+                            buff.append("<img src=\"file:///android_asset/emoticons/good.gif\"/>");
+                            break;
+                        case 0xE728: // Sticking tongue out
+                            buff.append("<img src=\"file:///android_asset/emoticons/bleah.gif\"/>");
+                            break;
+                        case 0xE729:
+                            buff.append("<img src=\"file:///android_asset/emoticons/wink.gif\"/>");
+                            break;
+                        case 0xE72A:
+                            buff.append("<img src=\"file:///android_asset/emoticons/happy02.gif\"/>");
+                            break;
+                        case 0xE72B: // Enduring face
+                            buff.append("<img src=\"file:///android_asset/emoticons/bearing.gif\"/>");
+                            break;
+                        case 0xE72C:
+                            buff.append("<img src=\"file:///android_asset/emoticons/catface.gif\"/>");
+                            break;
+                        case 0xE72D:
+                            buff.append("<img src=\"file:///android_asset/emoticons/crying.gif\"/>");
+                            break;
+                        case 0xE72E: // Tear
+                            buff.append("<img src=\"file:///android_asset/emoticons/weep.gif\"/>");
+                            break;
+                        case 0xE72F:
+                            buff.append("<img src=\"file:///android_asset/emoticons/ng.gif\"/>");
+                            break;
+
+                        case 0xE730:
+                            buff.append("<img src=\"file:///android_asset/emoticons/clip.gif\"/>");
+                            break;
+                        case 0xE731:
+                            buff.append("<img src=\"file:///android_asset/emoticons/copyright.gif\"/>");
+                            break;
+                        case 0xE732:
+                            buff.append("<img src=\"file:///android_asset/emoticons/tm.gif\"/>");
+                            break;
+                        case 0xE733:
+                            buff.append("<img src=\"file:///android_asset/emoticons/run.gif\"/>");
+                            break;
+                        case 0xE734:
+                            buff.append("<img src=\"file:///android_asset/emoticons/secret.gif\"/>");
+                            break;
+                        case 0xE735:
+                            buff.append("<img src=\"file:///android_asset/emoticons/recycle.gif\"/>");
+                            break;
+                        case 0xE736:
+                            buff.append("<img src=\"file:///android_asset/emoticons/r-mark.gif\"/>");
+                            break;
+                        case 0xE737:
+                            buff.append("<img src=\"file:///android_asset/emoticons/danger.gif\"/>");
+                            break;
+                        case 0xE738:
+                            buff.append("<img src=\"file:///android_asset/emoticons/ban.gif\"/>");
+                            break;
+                        case 0xE739:
+                            buff.append("<img src=\"file:///android_asset/emoticons/empty.gif\"/>");
+                            break;
+                        case 0xE73A:
+                            buff.append("<img src=\"file:///android_asset/emoticons/pass.gif\"/>");
+                            break;
+                        case 0xE73B:
+                            buff.append("<img src=\"file:///android_asset/emoticons/full.gif\"/>");
+                            break;
+                        case 0xE73C:
+                            buff.append("<img src=\"file:///android_asset/emoticons/leftright.gif\"/>");
+                            break;
+                        case 0xE73D:
+                            buff.append("<img src=\"file:///android_asset/emoticons/updown.gif\"/>");
+                            break;
+                        case 0xE73E:
+                            buff.append("<img src=\"file:///android_asset/emoticons/school.gif\"/>");
+                            break;
+                        case 0xE73F: // Wave
+                            buff.append("<img src=\"file:///android_asset/emoticons/wave.gif\"/>");
+                            break;
+
+                        case 0xE740:
+                            buff.append("<img src=\"file:///android_asset/emoticons/fuji.gif\"/>");
+                            break;
+                        case 0xE741: // 4-leaf clover
+                            buff.append("<img src=\"file:///android_asset/emoticons/clover.gif\"/>");
+                            break;
+                        case 0xE742: // Cherries
+                            buff.append("<img src=\"file:///android_asset/emoticons/cherry.gif\"/>");
+                            break;
+                        case 0xE743: // Tulip
+                            buff.append("<img src=\"file:///android_asset/emoticons/tulip.gif\"/>");
+                            break;
+                        case 0xE744: // Banana
+                            buff.append("<img src=\"file:///android_asset/emoticons/banana.gif\"/>");
+                            break;
+                        case 0xE745: // Apple
+                            buff.append("<img src=\"file:///android_asset/emoticons/apple.gif\"/>");
+                            break;
+                        case 0xE746: // Seedling
+                            buff.append("<img src=\"file:///android_asset/emoticons/bud.gif\"/>");
+                            break;
+                        case 0xE747: // Maple leaf
+                            buff.append("<img src=\"file:///android_asset/emoticons/maple.gif\"/>");
+                            break;
+                        case 0xE748: // Cherry blossom
+                            buff.append("<img src=\"file:///android_asset/emoticons/cherryblossom.gif\"/>");
+                            break;
+                        case 0xE749:
+                            buff.append("<img src=\"file:///android_asset/emoticons/riceball.gif\"/>");
+                            break;
+                        case 0xE74A:
+                            buff.append("<img src=\"file:///android_asset/emoticons/cake.gif\"/>");
+                            break;
+                        case 0xE74B:
+                            buff.append("<img src=\"file:///android_asset/emoticons/bottle.gif\"/>");
+                            break;
+                        case 0xE74C:
+                            buff.append("<img src=\"file:///android_asset/emoticons/noodle.gif\"/>");
+                            break;
+                        case 0xE74D:
+                            buff.append("<img src=\"file:///android_asset/emoticons/bread.gif\"/>");
+                            break;
+                        case 0xE74E:
+                            buff.append("<img src=\"file:///android_asset/emoticons/snail.gif\"/>");
+                            break;
+                        case 0xE74F:
+                            buff.append("<img src=\"file:///android_asset/emoticons/chick.gif\"/>");
+                            break;
+
+                        case 0xE750:
+                            buff.append("<img src=\"file:///android_asset/emoticons/penguin.gif\"/>");
+                            break;
+                        case 0xE751:
+                            buff.append("<img src=\"file:///android_asset/emoticons/fish.gif\"/>");
+                            break;
+                        case 0xE752:
+                            buff.append("<img src=\"file:///android_asset/emoticons/delicious.gif\"/>");
+                            break;
+                        case 0xE753:
+                            buff.append("<img src=\"file:///android_asset/emoticons/smile.gif\"/>");
+                            break;
+                        case 0xE754:
+                            buff.append("<img src=\"file:///android_asset/emoticons/horse.gif\"/>");
+                            break;
+                        case 0xE755:
+                            buff.append("<img src=\"file:///android_asset/emoticons/pig.gif\"/>");
+                            break;
+                        case 0xE756:
+                            buff.append("<img src=\"file:///android_asset/emoticons/wine.gif\"/>");
+                            break;
+                        case 0xE757: // Very thin
+                            buff.append("<img src=\"file:///android_asset/emoticons/shock.gif\"/>");
+                            break;
+                        default:
+                            buff.append((char)c);
+                    }//switch
+                }
+            }
+            catch (IOException e)
+            {
+                //Should never happen
+                Log.e(K9.LOG_TAG, null, e);
+            }
+
+            return buff.toString();
         }
 
         @Override
@@ -2116,7 +3222,7 @@ public class LocalStore extends Store implements Serializable
         {
             return inTopGroup;
         }
-        
+
         public void setInTopGroup(boolean inTopGroup)
         {
             this.inTopGroup = inTopGroup;
@@ -2186,15 +3292,21 @@ public class LocalStore extends Store implements Serializable
             if (flagList != null && flagList.length() > 0)
             {
                 String[] flags = flagList.split(",");
-                try
+
+                for (String flag : flags)
                 {
-                    for (String flag : flags)
+                    try
                     {
                         this.setFlagInternal(Flag.valueOf(flag), true);
                     }
-                }
-                catch (Exception e)
-                {
+
+                    catch (Exception e)
+                    {
+                        if ("X_BAD_FLAG".equals(flag) == false)
+                        {
+                            Log.w(K9.LOG_TAG, "Unable to parse flag " + flag);
+                        }
+                    }
                 }
             }
             this.mId = cursor.getLong(5);
@@ -2202,6 +3314,7 @@ public class LocalStore extends Store implements Serializable
             this.setRecipients(RecipientType.CC, Address.unpack(cursor.getString(7)));
             this.setRecipients(RecipientType.BCC, Address.unpack(cursor.getString(8)));
             this.setReplyTo(Address.unpack(cursor.getString(9)));
+
             this.mAttachmentCount = cursor.getInt(10);
             this.setInternalDate(new Date(cursor.getLong(11)));
             this.setMessageId(cursor.getString(12));
@@ -2219,6 +3332,7 @@ public class LocalStore extends Store implements Serializable
          * changes.
          */
 
+        @Override
         public void writeTo(OutputStream out) throws IOException, MessagingException
         {
             if (mMessageDirty) buildMimeRepresentation();
@@ -2269,6 +3383,7 @@ public class LocalStore extends Store implements Serializable
         }
 
 
+        @Override
         public void setMessageId(String messageId)
         {
             mMessageId = messageId;
@@ -2282,6 +3397,7 @@ public class LocalStore extends Store implements Serializable
             return mAttachmentCount;
         }
 
+        @Override
         public void setFrom(Address from) throws MessagingException
         {
             this.mFrom = new Address[] { from };
@@ -2289,6 +3405,7 @@ public class LocalStore extends Store implements Serializable
         }
 
 
+        @Override
         public void setReplyTo(Address[] replyTo) throws MessagingException
         {
             if (replyTo == null || replyTo.length == 0)
@@ -2362,6 +3479,7 @@ public class LocalStore extends Store implements Serializable
             return mId;
         }
 
+        @Override
         public void setFlag(Flag flag, boolean set) throws MessagingException
         {
             if (flag == Flag.DELETED && set)
@@ -2434,6 +3552,30 @@ public class LocalStore extends Store implements Serializable
                         folder.setUnreadMessageCount(folder.getUnreadMessageCount() + 1);
                     }
                 }
+                if ((flag == Flag.DELETED || flag == Flag.X_DESTROYED) && isSet(Flag.FLAGGED))
+                {
+                    LocalFolder folder = (LocalFolder)mFolder;
+                    if (set)
+                    {
+                        folder.setFlaggedMessageCount(folder.getFlaggedMessageCount() - 1);
+                    }
+                    else
+                    {
+                        folder.setFlaggedMessageCount(folder.getFlaggedMessageCount() + 1);
+                    }
+                }
+                if (flag == Flag.FLAGGED && !isSet(Flag.DELETED))
+                {
+                    LocalFolder folder = (LocalFolder)mFolder;
+                    if (set)
+                    {
+                        folder.setFlaggedMessageCount(folder.getFlaggedMessageCount() + 1);
+                    }
+                    else
+                    {
+                        folder.setFlaggedMessageCount(folder.getFlaggedMessageCount() - 1);
+                    }
+                }
             }
             catch (MessagingException me)
             {
@@ -2462,15 +3604,15 @@ public class LocalStore extends Store implements Serializable
 
         }
 
+        @Override
         public void addHeader(String name, String value)
         {
             if (!mHeadersLoaded)
-            {
                 loadHeaders();
-            }
             super.addHeader(name, value);
         }
 
+        @Override
         public void setHeader(String name, String value)
         {
             if (!mHeadersLoaded)
@@ -2478,14 +3620,15 @@ public class LocalStore extends Store implements Serializable
             super.setHeader(name, value);
         }
 
+        @Override
         public String[] getHeader(String name)
         {
             if (!mHeadersLoaded)
                 loadHeaders();
-
             return super.getHeader(name);
         }
 
+        @Override
         public void removeHeader(String name)
         {
             if (!mHeadersLoaded)
@@ -2493,8 +3636,13 @@ public class LocalStore extends Store implements Serializable
             super.removeHeader(name);
         }
 
-
-
+        @Override
+        public Set<String> getHeaderNames()
+        {
+            if (!mHeadersLoaded)
+                loadHeaders();
+            return super.getHeaderNames();
+        }
     }
 
     public class LocalAttachmentBodyPart extends MimeBodyPart
@@ -2521,6 +3669,7 @@ public class LocalStore extends Store implements Serializable
             mAttachmentId = attachmentId;
         }
 
+        @Override
         public String toString()
         {
             return "" + mAttachmentId;
@@ -2551,10 +3700,6 @@ public class LocalStore extends Store implements Serializable
                  * have been blown away, we just return an empty stream.
                  */
                 return new ByteArrayInputStream(new byte[0]);
-            }
-            catch (IOException ioe)
-            {
-                throw new MessagingException("Invalid attachment.", ioe);
             }
         }
 

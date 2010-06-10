@@ -2,12 +2,14 @@ package com.fsck.k9.service;
 
 import android.content.Context;
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.os.IBinder;
 import android.os.PowerManager;
-import android.os.PowerManager.WakeLock;
 import android.util.Log;
 import com.fsck.k9.*;
+import com.fsck.k9.controller.MessagingController;
+import com.fsck.k9.controller.MessagingListener;
+import com.fsck.k9.helper.power.TracingPowerManager;
+import com.fsck.k9.helper.power.TracingPowerManager.TracingWakeLock;
 
 import java.util.HashMap;
 
@@ -81,17 +83,17 @@ public class PollService extends CoreService
     class Listener extends MessagingListener
     {
         HashMap<String, Integer> accountsChecked = new HashMap<String, Integer>();
-        private WakeLock wakeLock = null;
+        private TracingWakeLock wakeLock = null;
         private int startId = -1;
 
         // wakelock strategy is to be very conservative.  If there is any reason to release, then release
         // don't want to take the chance of running wild
         public synchronized void wakeLockAcquire()
         {
-            WakeLock oldWakeLock = wakeLock;
+            TracingWakeLock oldWakeLock = wakeLock;
 
-            PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
-            wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "K9");
+            TracingPowerManager pm = TracingPowerManager.getPowerManager(PollService.this);
+            wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "PollService wakeLockAcquire");
             wakeLock.setReferenceCounted(false);
             wakeLock.acquire(K9.WAKE_LOCK_TIMEOUT);
 
@@ -141,10 +143,11 @@ public class PollService extends CoreService
 
         private void release()
         {
-            MailService.saveLastCheckEnd(getApplication());
-            
+
             MessagingController controller = MessagingController.getInstance(getApplication());
             controller.setCheckMailListener(null);
+            MailService.saveLastCheckEnd(getApplication());
+
             MailService.actionReschedulePoll(PollService.this, null);
             wakeLockRelease();
             if (K9.DEBUG)

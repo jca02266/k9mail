@@ -66,6 +66,36 @@
         <item>1000</item>
     </string-array>
     
+    <string-array name="account_settings_message_age_entries">
+        <item>@string/account_settings_message_age_any</item>
+        <item>@string/account_settings_message_age_0</item>
+        <item>@string/account_settings_message_age_1</item>
+        <item>@string/account_settings_message_age_2</item>
+        <item>@string/account_settings_message_age_7</item>
+        <item>@string/account_settings_message_age_14</item>
+        <item>@string/account_settings_message_age_21</item>
+        <item>@string/account_settings_message_age_1_month</item>
+        <item>@string/account_settings_message_age_2_months</item>
+        <item>@string/account_settings_message_age_3_months</item>
+        <item>@string/account_settings_message_age_6_months</item>
+        <item>@string/account_settings_message_age_1_year</item>
+    </string-array>
+
+    <string-array name="account_settings_message_age_values">
+        <item>-1</item>
+        <item>0</item>
+        <item>1</item>
+        <item>2</item>
+        <item>7</item>
+        <item>14</item>
+        <item>21</item>
+        <item>28</item>
+        <item>56</item>
+        <item>84</item>
+        <item>168</item>
+        <item>365</item>
+    </string-array>
+    
     <string-array name="account_settings_folder_display_mode_entries">
         <item>@string/account_settings_folder_display_mode_all</item>
        <item>@string/account_settings_folder_display_mode_first_class</item>
@@ -90,6 +120,18 @@
         <item>NEVER</item>
         <item>KEYBOARD_AVAILABLE</item>
         <item>ALWAYS</item>
+    </string-array>
+    
+    <string-array name="account_settings_searchable_entries">
+        <item>@string/account_settings_searchable_all</item>
+       <item>@string/account_settings_searchable_displayable</item>
+       <item>@string/account_settings_searchable_none</item>
+    </string-array>
+
+    <string-array name="account_settings_searchable_values">
+        <item>ALL</item>
+        <item>DISPLAYABLE</item>
+        <item>NONE</item>
     </string-array>
   
      <string-array name="account_settings_folder_sync_mode_entries">
@@ -234,12 +276,14 @@
     
     <string-array name="background_ops_entries">
     	<item>@string/background_ops_enabled</item>
+    	<item>@string/background_ops_auto_sync</item>
     	<item>@string/background_ops_always</item>
         <item>@string/background_ops_never</item>
     </string-array>
     
     <string-array name="background_ops_values">
     <item>WHEN_CHECKED</item>
+    <item>WHEN_CHECKED_AUTO_SYNC</item>
     <item>ALWAYS</item>
     <item>NEVER</item>    
     </string-array>
@@ -249,6 +293,71 @@
     <item>@string/date_format_medium</item>
     <item>@string/date_format_common</item>
     <item>@string/date_format_iso8601</item>
+    </string-array>
+
+
+    <string-array name="font_entries">
+    	<item>@string/font_size_tiniest</item>
+    	<item>@string/font_size_tiny</item>
+    	<item>@string/font_size_smaller</item>
+    	<item>@string/font_size_small</item>
+    	<item>@string/font_size_medium</item>
+    	<item>@string/font_size_large</item>
+    	<item>@string/font_size_larger</item>
+    </string-array>
+
+    <string-array name="font_values">
+    	<item>10</item>
+    	<item>12</item>
+    	<item>14</item>
+    	<item>16</item>
+    	<item>18</item>
+    	<item>20</item>
+    	<item>22</item>
+    </string-array>
+
+    <string-array name="font_entries_webview">
+    	<item>@string/font_size_webview_smaller</item>
+    	<item>@string/font_size_webview_small</item>
+    	<item>@string/font_size_webview_normal</item>
+    	<item>@string/font_size_webview_large</item>
+    	<item>@string/font_size_webview_larger</item>
+    </string-array>
+
+	<!--
+    	Be sure to also change FontSizes.getMessageViewContentAsInt() and
+	    FontSizes.setMessageViewContent() if you change this.
+	-->
+    <string-array name="font_values_webview">
+    	<item>1</item>
+    	<item>2</item>
+    	<item>3</item>
+    	<item>4</item>
+    	<item>5</item>
+    </string-array>
+    
+    <string-array name="idle_refresh_period_entries">
+    <item>@string/idle_refresh_period_1min</item>
+    <item>@string/idle_refresh_period_2min</item>
+    <item>@string/idle_refresh_period_3min</item>
+    <item>@string/idle_refresh_period_6min</item>
+    <item>@string/idle_refresh_period_12min</item>
+    <item>@string/idle_refresh_period_24min</item>
+    <item>@string/idle_refresh_period_36min</item>
+    <item>@string/idle_refresh_period_48min</item>
+    <item>@string/idle_refresh_period_60min</item>
+    </string-array>
+
+    <string-array name="idle_refresh_period_values">
+        <item>1</item>
+        <item>2</item>
+        <item>3</item>
+        <item>6</item>
+        <item>12</item>
+        <item>24</item>
+        <item>36</item>  
+        <item>48</item>  
+        <item>60</item> 
     </string-array>
    
 </resources>

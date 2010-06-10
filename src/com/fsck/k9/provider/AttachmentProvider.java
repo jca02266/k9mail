@@ -9,8 +9,8 @@ import android.database.sqlite.SQLiteDatabase;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.net.Uri;
-import android.os.Environment;
 import android.os.ParcelFileDescriptor;
+import android.os.Environment;
 import android.util.Log;
 import com.fsck.k9.Account;
 import com.fsck.k9.K9;
@@ -158,7 +158,7 @@ public class AttachmentProvider extends ContentProvider
     }
 
     private File getFile(String dbName, String id)
-        throws FileNotFoundException
+    throws FileNotFoundException
     {
         try
         {
@@ -166,8 +166,9 @@ public class AttachmentProvider extends ContentProvider
             File file = new File(attachmentsDir, id);
             if (!file.exists())
             {
-                file = new File("/sdcard"  + attachmentsDir.getCanonicalPath().substring("/data".length()), id);
-                if (!file.exists()) {
+                file = new File(Environment.getExternalStorageDirectory()  + attachmentsDir.getCanonicalPath().substring("/data".length()), id);
+                if (!file.exists())
+                {
                     throw new FileNotFoundException();
                 }
             }
@@ -252,7 +253,7 @@ public class AttachmentProvider extends ContentProvider
         List<String> segments = uri.getPathSegments();
         String dbName = segments.get(0);
         String id = segments.get(1);
-        String format = segments.get(2);
+        //String format = segments.get(2);
         String path = getContext().getDatabasePath(dbName).getAbsolutePath();
         String name = null;
         int size = -1;

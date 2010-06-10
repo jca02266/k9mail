@@ -4,11 +4,12 @@ import android.util.Log;
 
 import com.fsck.k9.Account;
 import com.fsck.k9.K9;
-import com.fsck.k9.Utility;
+import com.fsck.k9.controller.MessageRetrievalListener;
+import com.fsck.k9.helper.Utility;
 import com.fsck.k9.mail.*;
 import com.fsck.k9.mail.Folder.OpenMode;
+import com.fsck.k9.mail.filter.EOLConvertingOutputStream;
 import com.fsck.k9.mail.internet.MimeMessage;
-import com.fsck.k9.mail.transport.EOLConvertingOutputStream;
 import com.fsck.k9.mail.transport.TrustedSocketFactory;
 import org.apache.http.*;
 import org.apache.http.auth.AuthScope;
@@ -49,6 +50,8 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Stack;
 import java.util.zip.GZIPInputStream;
 
@@ -260,9 +263,9 @@ public class WebDavStore extends Store
     }
 
     @Override
-    public Folder[] getPersonalNamespaces() throws MessagingException
+    public List<? extends Folder> getPersonalNamespaces(boolean forceListAll) throws MessagingException
     {
-        ArrayList<Folder> folderList = new ArrayList<Folder>();
+        LinkedList<Folder> folderList = new LinkedList<Folder>();
         HashMap<String, String> headers = new HashMap<String, String>();
         DataSet dataset = new DataSet();
         String messageBody;
@@ -323,7 +326,7 @@ public class WebDavStore extends Store
             this.mFolderList.put(folderName, wdFolder);
         }
 
-        return folderList.toArray(new WebDavFolder[] {});
+        return folderList;
     }
 
     @Override
@@ -366,7 +369,7 @@ public class WebDavStore extends Store
         buffer.append("<?xml version='1.0' ?>");
         buffer.append("<a:searchrequest xmlns:a='DAV:'><a:sql>\r\n");
         buffer.append("SELECT \"DAV:uid\", \"DAV:ishidden\"\r\n");
-        buffer.append(" FROM SCOPE('deep traversal of \""+this.mUrl+"\"')\r\n");
+        buffer.append(" FROM SCOPE('hierarchical traversal of \""+this.mUrl+"\"')\r\n"); 
         buffer.append(" WHERE \"DAV:ishidden\"=False AND \"DAV:isfolder\"=True\r\n");
         buffer.append("</a:sql></a:searchrequest>\r\n");
         return buffer.toString();
@@ -925,7 +928,6 @@ public class WebDavStore extends Store
         try
         {
             int statusCode = -1;
-            StringEntity messageEntity = null;
             HttpGeneric httpmethod = new HttpGeneric(url);
             HttpResponse response;
             HttpEntity entity;
@@ -1333,6 +1335,11 @@ public class WebDavStore extends Store
 
             return this.mUnreadMessageCount;
         }
+        @Override
+        public int getFlaggedMessageCount() throws MessagingException
+        {
+            return -1;
+        }
 
         @Override
         public boolean isOpen()
@@ -1386,7 +1393,7 @@ public class WebDavStore extends Store
         }
 
         @Override
-        public Message[] getMessages(int start, int end, MessageRetrievalListener listener)
+        public Message[] getMessages(int start, int end, Date earliestDate, MessageRetrievalListener listener)
         throws MessagingException
         {
             ArrayList<Message> messages = new ArrayList<Message>();
@@ -1622,7 +1629,7 @@ public class WebDavStore extends Store
                             statusCode > 300)
                     {
                         throw new IOException("Error during with code " + statusCode + " during fetch: "
-                                + response.getStatusLine().toString());
+                                              + response.getStatusLine().toString());
                     }
 
                     if (entity != null)
@@ -1879,7 +1886,6 @@ public class WebDavStore extends Store
             String messageBody = "";
             HashMap<String, String> headers = new HashMap<String, String>();
             HashMap<String, String> uidToUrl = getMessageUrls(uids);
-            DataSet dataset = new DataSet();
             String[] urls = new String[uids.length];
 
             for (int i = 0, count = uids.length; i < count; i++)
@@ -1897,7 +1903,6 @@ public class WebDavStore extends Store
         private void deleteServerMessages(String[] uids) throws MessagingException
         {
             HashMap<String, String> uidToUrl = getMessageUrls(uids);
-            String[] urls = new String[uids.length];
 
             for (int i = 0, count = uids.length; i < count; i++)
             {
@@ -1955,6 +1960,7 @@ public class WebDavStore extends Store
 
                 try
                 {
+                    /*
                     String subject;
 
                     try
@@ -1966,6 +1972,8 @@ public class WebDavStore extends Store
                         Log.e(K9.LOG_TAG, "MessagingException while retrieving Subject: " + e);
                         subject = "";
                     }
+                    */
+
                     ByteArrayOutputStream out;
                     try
                     {
@@ -1977,9 +1985,10 @@ public class WebDavStore extends Store
                         out = new ByteArrayOutputStream();
                     }
                     open(OpenMode.READ_WRITE);
-                    message.writeTo(
-                        new EOLConvertingOutputStream(
-                            new BufferedOutputStream(out, 1024)));
+                    EOLConvertingOutputStream msgOut = new EOLConvertingOutputStream(
+                        new BufferedOutputStream(out, 1024));
+                    message.writeTo(msgOut);
+                    msgOut.flush();
 
                     bodyEntity = new StringEntity(out.toString(), "UTF-8");
                     bodyEntity.setContentType("message/rfc822");
@@ -2010,9 +2019,9 @@ public class WebDavStore extends Store
                     if (statusCode < 200 ||
                             statusCode > 300)
                     {
-                        throw new IOException("Error with status code " + statusCode 
-                                + " while sending/appending message.  Response = "
-                                + response.getStatusLine().toString() + " for message " + messageURL);
+                        throw new IOException("Error with status code " + statusCode
+                                              + " while sending/appending message.  Response = "
+                                              + response.getStatusLine().toString() + " for message " + messageURL);
                     }
                     WebDavMessage retMessage = new WebDavMessage(message.getUid(), this);
 
@@ -2034,6 +2043,13 @@ public class WebDavStore extends Store
             return false;
         }
 
+        @Override
+        public int hashCode()
+        {
+            return super.hashCode();
+        }
+
+        @Override
         public String getUidFromMessageId(Message message) throws MessagingException
         {
             Log.e(K9.LOG_TAG, "Unimplemented method getUidFromMessageId in WebDavStore.WebDavFolder could lead to duplicate messages "
@@ -2041,6 +2057,7 @@ public class WebDavStore extends Store
             return null;
         }
 
+        @Override
         public void setFlags(Flag[] flags, boolean value) throws MessagingException
         {
             Log.e(K9.LOG_TAG, "Unimplemented method setFlags(Flag[], boolean) breaks markAllMessagesAsRead and EmptyTrash");
@@ -2129,6 +2146,7 @@ public class WebDavStore extends Store
             this.mSize = size;
         }
 
+        @Override
         public void parse(InputStream in) throws IOException, MessagingException
         {
             super.parse(in);
@@ -2317,8 +2335,8 @@ public class WebDavStore extends Store
      */
     public class DataSet
     {
-        private HashMap<String, HashMap> mData = new HashMap<String, HashMap>();
-        private HashMap<String, String> mLostData = new HashMap<String, String>();
+        private HashMap<String, HashMap<String, String>> mData = new HashMap<String, HashMap<String, String>>();
+        //private HashMap<String, String> mLostData = new HashMap<String, String>();
         private String mUid = "";
         private HashMap<String, String> mTempData = new HashMap<String, String>();
 
@@ -2351,8 +2369,8 @@ public class WebDavStore extends Store
                 /* Lost Data are for requests that don't include a message UID.
                  * These requests should only have a depth of one for the response so it will never get stomped over.
                  */
-                mLostData = mTempData;
-                String visibleCount = mLostData.get("visiblecount");
+                //mLostData = mTempData;
+                //String visibleCount = mLostData.get("visiblecount");
             }
 
             mUid = "";

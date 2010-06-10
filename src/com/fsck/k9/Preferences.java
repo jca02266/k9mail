@@ -14,12 +14,6 @@ public class Preferences
 {
     private static Preferences preferences;
 
-    /**
-     * TODO need to think about what happens if this gets GCed along with the
-     * Activity that initialized it. Do we lose ability to read Preferences in
-     * further Activities? Maybe this should be stored in the Application
-     * context.
-     */
     public static synchronized Preferences getPreferences(Context context)
     {
         if (preferences == null)
@@ -32,6 +26,7 @@ public class Preferences
 
     private Storage mStorage;
     private List<Account> accounts;
+    private Account newAccount;
 
     private Preferences(Context context)
     {
@@ -74,6 +69,12 @@ public class Preferences
             loadAccounts();
         }
 
+        if ((newAccount != null) && newAccount.getAccountNumber() != -1)
+        {
+            accounts.add(newAccount);
+            newAccount = null;
+        }
+
         return accounts.toArray(new Account[0]);
     }
 
@@ -92,21 +93,30 @@ public class Preferences
             }
         }
 
+        if ((newAccount != null) && newAccount.getUuid().equals(uuid))
+        {
+            return newAccount;
+        }
+
         return null;
     }
 
     public synchronized Account newAccount()
     {
-        Account account = new Account(K9.app);
-        accounts.add(account);
+        newAccount = new Account(K9.app);
 
-        return account;
+        return newAccount;
     }
 
     public synchronized void deleteAccount(Account account)
     {
         accounts.remove(account);
         account.delete(this);
+
+        if (newAccount == account)
+        {
+            newAccount = null;
+        }
     }
 
     /**

@@ -5,6 +5,9 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.net.ConnectivityManager;
 import android.net.Uri;
+import android.util.Log;
+
+import com.fsck.k9.helper.Utility;
 import com.fsck.k9.mail.Address;
 import com.fsck.k9.mail.Folder;
 import com.fsck.k9.mail.MessagingException;
@@ -13,9 +16,11 @@ import com.fsck.k9.mail.store.LocalStore;
 import com.fsck.k9.mail.store.LocalStore.LocalFolder;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
+import java.util.Calendar;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -23,7 +28,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * Account stores all of the settings for a single account defined by the user. It is able to save
  * and delete itself given a Preferences to work with. Each account is defined by a UUID.
  */
-public class Account
+public class Account implements BaseAccount
 {
     public static final String EXPUNGE_IMMEDIATELY = "EXPUNGE_IMMEDIATELY";
     public static final String EXPUNGE_MANUALLY = "EXPUNGE_MANUALLY";
@@ -33,11 +38,12 @@ public class Account
     public static final int DELETE_POLICY_7DAYS = 1;
     public static final int DELETE_POLICY_ON_DELETE = 2;
     public static final int DELETE_POLICY_MARK_AS_READ = 3;
-    
+
     public static final String TYPE_WIFI = "WIFI";
     public static final String TYPE_MOBILE = "MOBILE";
     public static final String TYPE_OTHER = "OTHER";
     private static String[] networkTypes = { TYPE_WIFI, TYPE_MOBILE, TYPE_OTHER };
+
 
     /**
      * <pre>
@@ -57,6 +63,8 @@ public class Account
     private String mAlwaysBcc;
     private int mAutomaticCheckIntervalMinutes;
     private int mDisplayCount;
+    private int mChipColor;
+    private int mLedColor;
     private long mLastAutomaticCheckTime;
     private boolean mNotifyNewMail;
     private boolean mNotifySelfNewMail;
@@ -72,13 +80,23 @@ public class Account
     private int mAccountNumber;
     private boolean mVibrate;
     private boolean mRing;
+    private boolean mSaveAllHeaders;
+    private boolean mPushPollOnConnect;
     private String mRingtoneUri;
     private boolean mNotifySync;
     private HideButtons mHideMessageViewButtons;
     private boolean mIsSignatureBeforeQuotedText;
     private String mExpungePolicy = EXPUNGE_IMMEDIATELY;
     private int mMaxPushFolders;
-    private Map<String, Boolean> compressionMap = new ConcurrentHashMap<String, Boolean>(); 
+    private int mIdleRefreshMinutes;
+    private boolean goToUnreadMessageSearch;
+    private Map<String, Boolean> compressionMap = new ConcurrentHashMap<String, Boolean>();
+    private Searchable searchableFolders;
+    private boolean subscribedFoldersOnly;
+    private int maximumPolledMessageAge;
+    // Tracks if we have sent a notification for this account for
+    // current set of fetched messages
+    private boolean mRingNotified;
 
     private List<Identity> identities;
 
@@ -92,6 +110,10 @@ public class Account
         NEVER, ALWAYS, KEYBOARD_AVAILABLE;
     }
 
+    public enum Searchable
+    {
+        ALL, DISPLAYABLE, NONE
+    }
 
     protected Account(Context context)
     {
@@ -99,7 +121,10 @@ public class Account
         mUuid = UUID.randomUUID().toString();
         mLocalStoreUri = "local://localhost/" + context.getDatabasePath(mUuid + ".db");
         mAutomaticCheckIntervalMinutes = -1;
-        mDisplayCount = -1;
+        mIdleRefreshMinutes = 24;
+        mSaveAllHeaders = false;
+        mPushPollOnConnect = true;
+        mDisplayCount = K9.DEFAULT_VISIBLE_LIMIT;
         mAccountNumber = -1;
         mNotifyNewMail = true;
         mNotifySync = true;
@@ -116,7 +141,14 @@ public class Account
         mExpungePolicy = EXPUNGE_IMMEDIATELY;
         mAutoExpandFolderName = "INBOX";
         mMaxPushFolders = 10;
-        
+        mChipColor = (new Random()).nextInt(0xffffff) + 0xff000000;
+        mLedColor = mChipColor;
+        goToUnreadMessageSearch = false;
+        subscribedFoldersOnly = false;
+        maximumPolledMessageAge = 10;
+
+        searchableFolders = Searchable.ALL;
+
         identities = new ArrayList<Identity>();
 
         Identity identity = new Identity();
@@ -146,7 +178,17 @@ public class Account
         mAlwaysBcc = preferences.getPreferences().getString(mUuid + ".alwaysBcc", mAlwaysBcc);
         mAutomaticCheckIntervalMinutes = preferences.getPreferences().getInt(mUuid
                                          + ".automaticCheckIntervalMinutes", -1);
-        mDisplayCount = preferences.getPreferences().getInt(mUuid + ".displayCount", -1);
+        mIdleRefreshMinutes = preferences.getPreferences().getInt(mUuid
+                              + ".idleRefreshMinutes", 24);
+        mSaveAllHeaders = preferences.getPreferences().getBoolean(mUuid
+                          + ".saveAllHeaders", false);
+        mPushPollOnConnect = preferences.getPreferences().getBoolean(mUuid
+                             + ".pushPollOnConnect", true);
+        mDisplayCount = preferences.getPreferences().getInt(mUuid + ".displayCount", K9.DEFAULT_VISIBLE_LIMIT);
+	if (mDisplayCount < 0)
+	{
+	    mDisplayCount = K9.DEFAULT_VISIBLE_LIMIT;
+	}
         mLastAutomaticCheckTime = preferences.getPreferences().getLong(mUuid
                                   + ".lastAutomaticCheckTime", 0);
         mNotifyNewMail = preferences.getPreferences().getBoolean(mUuid + ".notifyNewMail",
@@ -167,11 +209,16 @@ public class Account
         mExpungePolicy = preferences.getPreferences().getString(mUuid  + ".expungePolicy", EXPUNGE_IMMEDIATELY);
 
         mMaxPushFolders = preferences.getPreferences().getInt(mUuid + ".maxPushFolders", 10);
-        
+        goToUnreadMessageSearch = preferences.getPreferences().getBoolean(mUuid + ".goToUnreadMessageSearch",
+                                  false);
+        subscribedFoldersOnly = preferences.getPreferences().getBoolean(mUuid + ".subscribedFoldersOnly",
+                false);
+        maximumPolledMessageAge = preferences.getPreferences().getInt(mUuid
+                + ".maximumPolledMessageAge", -1);
         for (String type : networkTypes)
         {
             Boolean useCompression = preferences.getPreferences().getBoolean(mUuid + ".useCompression." + type,
-                    true);
+                                     true);
             compressionMap.put(type, useCompression);
         }
 
@@ -200,6 +247,17 @@ public class Account
                                 "INBOX");
 
         mAccountNumber = preferences.getPreferences().getInt(mUuid + ".accountNumber", 0);
+
+        Random random = new Random((long)mAccountNumber+4);
+
+        mChipColor = preferences.getPreferences().getInt(mUuid+".chipColor",
+                     (random.nextInt(0x70)) +
+                     (random.nextInt(0x70) * 0xff) +
+                     (random.nextInt(0x70) * 0xffff) +
+                     0xff000000);
+
+        mLedColor = preferences.getPreferences().getInt(mUuid+".ledColor", mChipColor);
+
         mVibrate = preferences.getPreferences().getBoolean(mUuid + ".vibrate", false);
         mRing = preferences.getPreferences().getBoolean(mUuid + ".ring", true);
 
@@ -255,6 +313,16 @@ public class Account
             mFolderTargetMode = FolderMode.NOT_SECOND_CLASS;
         }
 
+        try
+        {
+            searchableFolders = Searchable.valueOf(preferences.getPreferences().getString(mUuid  + ".searchableFolders",
+                                                   Searchable.ALL.name()));
+        }
+        catch (Exception e)
+        {
+            searchableFolders = Searchable.ALL;
+        }
+
         mIsSignatureBeforeQuotedText = preferences.getPreferences().getBoolean(mUuid  + ".signatureBeforeQuotedText", false);
         identities = loadIdentities(preferences.getPreferences());
     }
@@ -287,6 +355,9 @@ public class Account
         editor.remove(mUuid + ".email");
         editor.remove(mUuid + ".alwaysBcc");
         editor.remove(mUuid + ".automaticCheckIntervalMinutes");
+        editor.remove(mUuid + ".pushPollOnConnect");
+        editor.remove(mUuid + ".saveAllHeaders");
+        editor.remove(mUuid + ".idleRefreshMinutes");
         editor.remove(mUuid + ".lastAutomaticCheckTime");
         editor.remove(mUuid + ".notifyNewMail");
         editor.remove(mUuid + ".notifySelfNewMail");
@@ -309,6 +380,12 @@ public class Account
         editor.remove(mUuid + ".signatureBeforeQuotedText");
         editor.remove(mUuid + ".expungePolicy");
         editor.remove(mUuid + ".maxPushFolders");
+        editor.remove(mUuid  + ".searchableFolders");
+        editor.remove(mUuid  + ".chipColor");
+        editor.remove(mUuid  + ".ledColor");
+        editor.remove(mUuid + ".goToUnreadMessageSearch");
+        editor.remove(mUuid + ".subscribedFoldersOnly");
+        editor.remove(mUuid + ".maximumPolledMessageAge");
         for (String type : networkTypes)
         {
             editor.remove(mUuid + ".useCompression." + type);
@@ -362,6 +439,9 @@ public class Account
         editor.putString(mUuid + ".description", mDescription);
         editor.putString(mUuid + ".alwaysBcc", mAlwaysBcc);
         editor.putInt(mUuid + ".automaticCheckIntervalMinutes", mAutomaticCheckIntervalMinutes);
+        editor.putInt(mUuid + ".idleRefreshMinutes", mIdleRefreshMinutes);
+        editor.putBoolean(mUuid + ".saveAllHeaders", mSaveAllHeaders);
+        editor.putBoolean(mUuid + ".pushPollOnConnect", mPushPollOnConnect);
         editor.putInt(mUuid + ".displayCount", mDisplayCount);
         editor.putLong(mUuid + ".lastAutomaticCheckTime", mLastAutomaticCheckTime);
         editor.putBoolean(mUuid + ".notifyNewMail", mNotifyNewMail);
@@ -385,6 +465,13 @@ public class Account
         editor.putBoolean(mUuid + ".signatureBeforeQuotedText", this.mIsSignatureBeforeQuotedText);
         editor.putString(mUuid + ".expungePolicy", mExpungePolicy);
         editor.putInt(mUuid + ".maxPushFolders", mMaxPushFolders);
+        editor.putString(mUuid  + ".searchableFolders", searchableFolders.name());
+        editor.putInt(mUuid + ".chipColor", mChipColor);
+        editor.putInt(mUuid + ".ledColor", mLedColor);
+        editor.putBoolean(mUuid + ".goToUnreadMessageSearch", goToUnreadMessageSearch);
+        editor.putBoolean(mUuid + ".subscribedFoldersOnly", subscribedFoldersOnly);
+        editor.putInt(mUuid + ".maximumPolledMessageAge", maximumPolledMessageAge);
+        
         for (String type : networkTypes)
         {
             Boolean useCompression = compressionMap.get(type);
@@ -400,16 +487,29 @@ public class Account
     }
 
     //TODO: Shouldn't this live in MessagingController?
-    public int getUnreadMessageCount(Context context) throws MessagingException
+    // Why should everything be in MessagingController? This is an Account-specific operation. --danapple0
+    public AccountStats getStats(Context context) throws MessagingException
     {
+        long startTime = System.currentTimeMillis();
+        AccountStats stats = new AccountStats();
         int unreadMessageCount = 0;
+        int flaggedMessageCount = 0;
         LocalStore localStore = getLocalStore();
+        if (K9.measureAccounts())
+        {
+            stats.size = localStore.getSize();
+        }
         Account.FolderMode aMode = getFolderDisplayMode();
         Preferences prefs = Preferences.getPreferences(context);
-        for (LocalFolder folder : localStore.getPersonalNamespaces())
+        long folderLoadStart = System.currentTimeMillis();
+        List<? extends Folder> folders = localStore.getPersonalNamespaces(false);
+        long folderLoadEnd = System.currentTimeMillis();
+        long folderEvalStart = folderLoadEnd;
+        for (Folder folder : folders)
         {
-            folder.refresh(prefs);
-            Folder.FolderClass fMode = folder.getDisplayClass();
+            LocalFolder localFolder = (LocalFolder)folder;
+            //folder.refresh(prefs);
+            Folder.FolderClass fMode = localFolder.getDisplayClass(prefs);
 
             if (folder.getName().equals(getTrashFolderName()) == false &&
                     folder.getName().equals(getDraftsFolderName()) == false &&
@@ -438,10 +538,41 @@ public class Account
                     continue;
                 }
                 unreadMessageCount += folder.getUnreadMessageCount();
+                flaggedMessageCount += folder.getFlaggedMessageCount();
+
             }
         }
+        long folderEvalEnd = System.currentTimeMillis();
+        stats.unreadMessageCount = unreadMessageCount;
+        stats.flaggedMessageCount = flaggedMessageCount;
+        long endTime = System.currentTimeMillis();
+        if (K9.DEBUG)
+            Log.d(K9.LOG_TAG, "Account.getStats() on " + getDescription() + " took " + (endTime - startTime) + " ms;"
+                  + " loading " + folders.size() + " took " + (folderLoadEnd - folderLoadStart) + " ms;"
+                  + " evaluating took " + (folderEvalEnd - folderEvalStart) + " ms");
+        return stats;
+    }
 
-        return unreadMessageCount;
+
+    public void setChipColor(int color)
+    {
+        mChipColor = color;
+    }
+
+    public int getChipColor()
+    {
+        return mChipColor;
+    }
+
+
+    public void setLedColor(int color)
+    {
+        mLedColor = color;
+    }
+
+    public int getLedColor()
+    {
+        return mLedColor;
     }
 
     public String getUuid()
@@ -544,6 +675,19 @@ public class Account
         mVibrate = vibrate;
     }
 
+
+
+    /* Have we sent a new mail notification on this account */
+    public boolean isRingNotified()
+    {
+        return mRingNotified;
+    }
+
+    public void setRingNotified(boolean ringNotified)
+    {
+        mRingNotified = ringNotified;
+    }
+
     public synchronized String getRingtone()
     {
         return mRingtoneUri;
@@ -580,16 +724,12 @@ public class Account
         int oldInterval = this.mAutomaticCheckIntervalMinutes;
         int newInterval = automaticCheckIntervalMinutes;
         this.mAutomaticCheckIntervalMinutes = automaticCheckIntervalMinutes;
-        
+
         return (oldInterval != newInterval);
     }
 
     public synchronized int getDisplayCount()
     {
-        if (mDisplayCount == -1)
-        {
-            this.mDisplayCount = K9.DEFAULT_VISIBLE_LIMIT;
-        }
         return mDisplayCount;
     }
 
@@ -716,7 +856,7 @@ public class Account
     {
         FolderMode oldSyncMode = mFolderSyncMode;
         mFolderSyncMode = syncMode;
-        
+
         if (syncMode == FolderMode.NONE && oldSyncMode != FolderMode.NONE)
         {
             return true;
@@ -736,7 +876,7 @@ public class Account
     public synchronized boolean setFolderPushMode(FolderMode pushMode)
     {
         FolderMode oldPushMode = mFolderPushMode;
-        
+
         mFolderPushMode = pushMode;
         return pushMode != oldPushMode;
     }
@@ -825,12 +965,12 @@ public class Account
 
     public LocalStore getLocalStore() throws MessagingException
     {
-        return Store.getLocalInstance(this, K9.app);        
+        return Store.getLocalInstance(this, K9.app);
     }
-    
+
     public Store getRemoteStore() throws MessagingException
     {
-        return Store.getRemoteInstance(this);        
+        return Store.getRemoteInstance(this);
     }
 
     @Override
@@ -838,12 +978,12 @@ public class Account
     {
         return mDescription;
     }
-    
+
     public void setCompression(String networkType, boolean useCompression)
     {
         compressionMap.put(networkType, useCompression);
     }
-    
+
     public boolean useCompression(String networkType)
     {
         Boolean useCompression = compressionMap.get(networkType);
@@ -856,7 +996,7 @@ public class Account
             return useCompression;
         }
     }
-    
+
     public boolean useCompression(int type)
     {
         String networkType = TYPE_OTHER;
@@ -871,7 +1011,7 @@ public class Account
         }
         return useCompression(networkType);
     }
-    
+
     @Override
     public boolean equals(Object o)
     {
@@ -1025,5 +1165,115 @@ public class Account
             }
         }
         return null;
+    }
+
+    public Searchable getSearchableFolders()
+    {
+        return searchableFolders;
+    }
+
+    public void setSearchableFolders(Searchable searchableFolders)
+    {
+        this.searchableFolders = searchableFolders;
+    }
+
+    public int getIdleRefreshMinutes()
+    {
+        return mIdleRefreshMinutes;
+    }
+
+    public void setIdleRefreshMinutes(int idleRefreshMinutes)
+    {
+        mIdleRefreshMinutes = idleRefreshMinutes;
+    }
+
+    public boolean isPushPollOnConnect()
+    {
+        return mPushPollOnConnect;
+    }
+
+    public void setPushPollOnConnect(boolean pushPollOnConnect)
+    {
+        mPushPollOnConnect = pushPollOnConnect;
+    }
+
+    public boolean isSaveAllHeaders()
+    {
+        return mSaveAllHeaders;
+    }
+
+    public void setSaveAllHeaders(boolean saveAllHeaders)
+    {
+        mSaveAllHeaders = saveAllHeaders;
+    }
+
+    public boolean goToUnreadMessageSearch()
+    {
+        return goToUnreadMessageSearch;
+    }
+
+    public void setGoToUnreadMessageSearch(boolean goToUnreadMessageSearch)
+    {
+        this.goToUnreadMessageSearch = goToUnreadMessageSearch;
+    }
+
+    public boolean subscribedFoldersOnly()
+    {
+        return subscribedFoldersOnly;
+    }
+
+    public void setSubscribedFoldersOnly(boolean subscribedFoldersOnly)
+    {
+        this.subscribedFoldersOnly = subscribedFoldersOnly;
+    }
+
+    public int getMaximumPolledMessageAge()
+    {
+        return maximumPolledMessageAge;
+    }
+
+    public void setMaximumPolledMessageAge(int maximumPolledMessageAge)
+    {
+        this.maximumPolledMessageAge = maximumPolledMessageAge;
+    }
+    public Date getEarliestPollDate()
+    {
+        int age = getMaximumPolledMessageAge();
+        if (age < 0 == false)
+        {
+            Calendar now = Calendar.getInstance();
+            now.set(Calendar.HOUR_OF_DAY, 0);
+            now.set(Calendar.MINUTE, 0);
+            now.set(Calendar.SECOND, 0);
+            now.set(Calendar.MILLISECOND, 0);
+            if (age < 28)
+            {
+                now.add(Calendar.DATE, age * -1);
+            }
+            else switch (age)
+            {
+                case 28:
+                    now.add(Calendar.MONTH, -1);
+                    break;
+                case 56:
+                    now.add(Calendar.MONTH, -2);
+                    break;
+                case 84:
+                    now.add(Calendar.MONTH, -3);
+                    break;
+                case 168:
+                    now.add(Calendar.MONTH, -6);
+                    break;
+                case 365:
+                    now.add(Calendar.YEAR, -1);
+                    break;
+            }
+            
+            return now.getTime();
+        }
+        else
+        {
+            return null;
+        }
     }
 }

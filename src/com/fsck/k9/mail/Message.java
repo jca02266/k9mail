@@ -3,9 +3,17 @@ package com.fsck.k9.mail;
 
 import java.util.Date;
 import java.util.HashSet;
+import java.util.Set;
+
+import android.util.Log;
+
+import com.fsck.k9.K9;
+import com.fsck.k9.activity.MessageReference;
 
 public abstract class Message implements Part, Body
 {
+    private MessageReference mReference = null;
+
     public enum RecipientType
     {
         TO, CC, BCC,
@@ -18,6 +26,52 @@ public abstract class Message implements Part, Body
     protected Date mInternalDate;
 
     protected Folder mFolder;
+    
+    public boolean olderThan(Date earliestDate)
+    {
+        if (earliestDate == null)
+        {
+            return false;
+        }
+        Date myDate = getSentDate();
+        if (myDate == null)
+        {
+            myDate = getInternalDate();
+        }
+        if (myDate == null)
+        {
+            myDate = getReceivedDate();
+        }
+        if (myDate != null)
+        {
+            return myDate.before(earliestDate);
+        }
+        return false;
+    }
+    @Override
+    public boolean equals(Object o)
+    {
+        if (o == null || o instanceof Message == false)
+        {
+            return false;
+        }
+        Message other = (Message)o;
+        return (mFolder.getName().equals(other.getFolder().getName())
+                && mFolder.getAccount().getUuid().equals(other.getFolder().getAccount().getUuid())
+                && mUid.equals(other.getUid()));
+    }
+
+    @Override
+    public int hashCode()
+    {
+        final int MULTIPLIER = 31;
+
+        int result = 1;
+        result = MULTIPLIER * result + mFolder.getName().hashCode();
+        result = MULTIPLIER * result + mFolder.getAccount().getUuid().hashCode();
+        result = MULTIPLIER * result + mUid.hashCode();
+        return result;
+    }
 
     public String getUid()
     {
@@ -26,6 +80,7 @@ public abstract class Message implements Part, Body
 
     public void setUid(String uid)
     {
+        mReference = null;
         this.mUid = uid;
     }
 
@@ -48,9 +103,9 @@ public abstract class Message implements Part, Body
         this.mInternalDate = internalDate;
     }
 
-    public abstract Date getReceivedDate() throws MessagingException;
+    public abstract Date getReceivedDate();
 
-    public abstract Date getSentDate() throws MessagingException;
+    public abstract Date getSentDate();
 
     public abstract void setSentDate(Date sentDate) throws MessagingException;
 
@@ -92,6 +147,8 @@ public abstract class Message implements Part, Body
     public abstract void setHeader(String name, String value) throws MessagingException;
 
     public abstract String[] getHeader(String name) throws MessagingException;
+
+    public abstract Set<String> getHeaderNames();
 
     public abstract void removeHeader(String name) throws MessagingException;
 
@@ -145,4 +202,22 @@ public abstract class Message implements Part, Body
     public abstract void saveChanges() throws MessagingException;
 
     public abstract void setEncoding(String encoding);
+
+    public MessageReference makeMessageReference()
+    {
+        if (mReference == null)
+        {
+            mReference = new MessageReference();
+            mReference.accountUuid = getFolder().getAccount().getUuid();
+            mReference.folderName = getFolder().getName();
+            mReference.uid = mUid;
+        }
+        return mReference;
+    }
+
+    public boolean equalsReference(MessageReference ref)
+    {
+        MessageReference tmpReference = makeMessageReference();
+        return tmpReference.equals(ref);
+    }
 }

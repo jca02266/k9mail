@@ -21,6 +21,8 @@ import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.EditText;
 import com.fsck.k9.*;
+import com.fsck.k9.activity.K9Activity;
+import com.fsck.k9.helper.Utility;
 import java.io.Serializable;
 import java.io.UnsupportedEncodingException;
 import java.net.URI;
@@ -106,7 +108,10 @@ public class AccountSetupBasics extends K9Activity
     public void onSaveInstanceState(Bundle outState)
     {
         super.onSaveInstanceState(outState);
-        outState.putString(EXTRA_ACCOUNT, mAccount.getUuid());
+        if (mAccount != null)
+        {
+            outState.putString(EXTRA_ACCOUNT, mAccount.getUuid());
+        }
         if (mProvider != null)
         {
             outState.putSerializable(STATE_KEY_PROVIDER, mProvider);
@@ -234,7 +239,7 @@ public class AccountSetupBasics extends K9Activity
         URI outgoingUri = null;
         try
         {
-            String userEnc = URLEncoder.encode(user, "UTF-8");        
+            String userEnc = URLEncoder.encode(user, "UTF-8");
             String passwordEnc = URLEncoder.encode(password, "UTF-8");
 
             String incomingUsername = mProvider.incomingUsernameTemplate;
@@ -256,6 +261,17 @@ public class AccountSetupBasics extends K9Activity
             outgoingUri = new URI(outgoingUriTemplate.getScheme(), outgoingUsername + ":"
                                   + passwordEnc, outgoingUriTemplate.getHost(), outgoingUriTemplate.getPort(), null,
                                   null, null);
+
+            mAccount = Preferences.getPreferences(this).newAccount();
+            mAccount.setName(getOwnerName());
+            mAccount.setEmail(email);
+            mAccount.setStoreUri(incomingUri.toString());
+            mAccount.setTransportUri(outgoingUri.toString());
+            mAccount.setDraftsFolderName(getString(R.string.special_mailbox_name_drafts));
+            mAccount.setTrashFolderName(getString(R.string.special_mailbox_name_trash));
+            mAccount.setOutboxFolderName(getString(R.string.special_mailbox_name_outbox));
+            mAccount.setSentFolderName(getString(R.string.special_mailbox_name_sent));
+            AccountSetupCheckSettings.actionCheckSettings(this, mAccount, true, true);
         }
         catch (UnsupportedEncodingException enc)
         {
@@ -271,17 +287,6 @@ public class AccountSetupBasics extends K9Activity
             onManualSetup();
             return;
         }
-
-        mAccount = Preferences.getPreferences(this).newAccount();
-        mAccount.setName(getOwnerName());
-        mAccount.setEmail(email);
-        mAccount.setStoreUri(incomingUri.toString());
-        mAccount.setTransportUri(outgoingUri.toString());
-        mAccount.setDraftsFolderName(getString(R.string.special_mailbox_name_drafts));
-        mAccount.setTrashFolderName(getString(R.string.special_mailbox_name_trash));
-        mAccount.setOutboxFolderName(getString(R.string.special_mailbox_name_outbox));
-        mAccount.setSentFolderName(getString(R.string.special_mailbox_name_sent));
-        AccountSetupCheckSettings.actionCheckSettings(this, mAccount, true, true);
     }
 
     private void onNext()
@@ -340,7 +345,7 @@ public class AccountSetupBasics extends K9Activity
         mAccount.setEmail(email);
         try
         {
-            String userEnc = URLEncoder.encode(user, "UTF-8");        
+            String userEnc = URLEncoder.encode(user, "UTF-8");
             String passwordEnc = URLEncoder.encode(password, "UTF-8");
 
             URI uri = new URI("placeholder", userEnc + ":" + passwordEnc, "mail." + domain, -1, null,

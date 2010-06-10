@@ -6,7 +6,8 @@ import android.util.Log;
 
 import com.fsck.k9.Account;
 import com.fsck.k9.K9;
-import com.fsck.k9.Utility;
+import com.fsck.k9.controller.MessageRetrievalListener;
+import com.fsck.k9.helper.Utility;
 import com.fsck.k9.mail.*;
 import com.fsck.k9.mail.Folder.OpenMode;
 import com.fsck.k9.mail.internet.MimeMessage;
@@ -19,8 +20,11 @@ import java.net.*;
 import java.security.GeneralSecurityException;
 import java.security.SecureRandom;
 import java.util.ArrayList;
+import java.util.Date;
+import java.util.LinkedList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 
 public class Pop3Store extends Store
 {
@@ -156,12 +160,11 @@ public class Pop3Store extends Store
     }
 
     @Override
-    public Folder[] getPersonalNamespaces() throws MessagingException
+    public List<? extends Folder> getPersonalNamespaces(boolean forceListAll) throws MessagingException
     {
-        return new Folder[]
-               {
-                   getFolder("INBOX"),
-               };
+        List<Folder> folders = new LinkedList<Folder>();
+        folders.add(getFolder("INBOX"));
+        return folders;
     }
 
     @Override
@@ -318,6 +321,7 @@ public class Pop3Store extends Store
             mUidToMsgNumMap.clear();
         }
 
+        @Override
         public boolean isOpen()
         {
             return (mIn != null && mOut != null && mSocket != null
@@ -414,6 +418,11 @@ public class Pop3Store extends Store
         {
             return -1;
         }
+        @Override
+        public int getFlaggedMessageCount() throws MessagingException
+        {
+            return -1;
+        }
 
         @Override
         public Message getMessage(String uid) throws MessagingException
@@ -427,7 +436,7 @@ public class Pop3Store extends Store
         }
 
         @Override
-        public Message[] getMessages(int start, int end, MessageRetrievalListener listener)
+        public Message[] getMessages(int start, int end, Date earliestDate, MessageRetrievalListener listener)
         throws MessagingException
         {
             if (start < 1 || end < 1 || end < start)
@@ -513,15 +522,30 @@ public class Pop3Store extends Store
                         break;
                     }
                     String[] uidParts = response.split(" ");
-                    Integer msgNum = Integer.valueOf(uidParts[0]);
-                    String msgUid = uidParts[1];
-                    if (msgNum >= start && msgNum <= end)
+                    if ((uidParts.length >= 3) && "+OK".equals(uidParts[0]))
                     {
-                        Pop3Message message = mMsgNumToMsgMap.get(msgNum);
-                        if (message == null)
+                        /*
+                         * At least one server software places a "+OK" in
+                         * front of every line in the unique-id listing.
+                         *
+                         * Fix up the array if we detected this behavior.
+                         * See Issue 1237
+                         */
+                        uidParts[0] = uidParts[1];
+                        uidParts[1] = uidParts[2];
+                    }
+                    if (uidParts.length >= 2)
+                    {
+                        Integer msgNum = Integer.valueOf(uidParts[0]);
+                        String msgUid = uidParts[1];
+                        if (msgNum >= start && msgNum <= end)
                         {
-                            message = new Pop3Message(msgUid, this);
-                            indexMessage(msgNum, message);
+                            Pop3Message message = mMsgNumToMsgMap.get(msgNum);
+                            if (message == null)
+                            {
+                                message = new Pop3Message(msgUid, this);
+                                indexMessage(msgNum, message);
+                            }
                         }
                     }
                 }
@@ -610,6 +634,7 @@ public class Pop3Store extends Store
          * @param fp
          * @throws MessagingException
          */
+        @Override
         public void fetch(Message[] messages, FetchProfile fp, MessageRetrievalListener listener)
         throws MessagingException
         {
@@ -730,7 +755,7 @@ public class Pop3Store extends Store
                     String response = executeSimpleCommand(String.format("LIST %d",
                                                            mUidToMsgNumMap.get(pop3Message.getUid())));
                     String[] listParts = response.split(" ");
-                    int msgNum = Integer.parseInt(listParts[1]);
+                    //int msgNum = Integer.parseInt(listParts[1]);
                     int msgSize = Integer.parseInt(listParts[2]);
                     pop3Message.setSize(msgSize);
                     if (listener != null)
@@ -831,14 +856,17 @@ public class Pop3Store extends Store
             return PERMANENT_FLAGS;
         }
 
+        @Override
         public void appendMessages(Message[] messages) throws MessagingException
         {
         }
 
+        @Override
         public void delete(boolean recurse) throws MessagingException
         {
         }
 
+        @Override
         public void delete(Message[] msgs, String trashFolderName) throws MessagingException
         {
             setFlags(msgs, new Flag[] { Flag.DELETED }, true);
@@ -858,6 +886,7 @@ public class Pop3Store extends Store
             setFlags(messages, flags, value);
         }
 
+        @Override
         public void setFlags(Message[] messages, Flag[] flags, boolean value)
         throws MessagingException
         {
@@ -1052,6 +1081,12 @@ public class Pop3Store extends Store
             return super.equals(o);
         }
 
+        @Override
+        public int hashCode()
+        {
+            return mName.hashCode();
+        }
+
     }//Pop3Folder
 
     class Pop3Message extends MimeMessage
@@ -1061,7 +1096,6 @@ public class Pop3Store extends Store
             mUid = uid;
             mFolder = folder;
             mSize = -1;
-            mFlags.add(Flag.X_NO_SEEN_INFO);
         }
 
         public void setSize(int size)
@@ -1069,6 +1103,7 @@ public class Pop3Store extends Store
             mSize = size;
         }
 
+        @Override
         protected void parse(InputStream in) throws IOException, MessagingException
         {
             super.parse(in);
@@ -1104,6 +1139,7 @@ public class Pop3Store extends Store
         public boolean uidl;
         public boolean pipelining;
 
+        @Override
         public String toString()
         {
             return String.format("STLS %b, TOP %b, USER %b, UIDL %b, PIPELINING %b",

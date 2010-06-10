@@ -5,10 +5,10 @@ import android.util.Log;
 
 import com.fsck.k9.Account;
 import com.fsck.k9.K9;
-import com.fsck.k9.PeekableInputStream;
 import com.fsck.k9.mail.Message;
 import com.fsck.k9.mail.MessagingException;
 import com.fsck.k9.mail.Transport;
+import com.fsck.k9.mail.filter.PeekableInputStream;
 import com.fsck.k9.mail.store.WebDavStore;
 
 import java.io.OutputStream;
@@ -24,10 +24,6 @@ public class WebDavTransport extends Transport
 
     String host;
     int mPort;
-    private int mConnectionSecurity;
-    private String mUsername; /* Stores the username for authentications */
-    private String mPassword; /* Stores the password for authentications */
-    private String mUrl;      /* Stores the base URL for the server */
 
     boolean mSecure;
     Socket mSocket;
@@ -51,6 +47,7 @@ public class WebDavTransport extends Transport
             Log.d(K9.LOG_TAG, ">>> New WebDavTransport creation complete");
     }
 
+    @Override
     public void open() throws MessagingException
     {
         if (K9.DEBUG)
@@ -59,10 +56,12 @@ public class WebDavTransport extends Transport
         store.getHttpClient();
     }
 
+    @Override
     public void close()
     {
     }
 
+    @Override
     public void sendMessage(Message message) throws MessagingException
     {
 

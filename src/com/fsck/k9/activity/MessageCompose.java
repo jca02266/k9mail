@@ -23,6 +23,9 @@ import android.view.Window;
 import android.widget.AutoCompleteTextView.Validator;
 import android.widget.*;
 import com.fsck.k9.*;
+import com.fsck.k9.controller.MessagingController;
+import com.fsck.k9.controller.MessagingListener;
+import com.fsck.k9.helper.Utility;
 import com.fsck.k9.mail.*;
 import com.fsck.k9.mail.Message.RecipientType;
 import com.fsck.k9.mail.internet.*;
@@ -36,6 +39,7 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.StringTokenizer;
+import org.apache.james.mime4j.codec.EncoderUtil;
 
 public class MessageCompose extends K9Activity implements OnClickListener, OnFocusChangeListener
 {
@@ -176,6 +180,10 @@ public class MessageCompose extends K9Activity implements OnClickListener, OnFoc
      */
     public static void actionCompose(Context context, Account account)
     {
+        if (account == null)
+        {
+            account = Preferences.getPreferences(context).getDefaultAccount();
+        }
         Intent i = new Intent(context, MessageCompose.class);
         i.putExtra(EXTRA_ACCOUNT, account.getUuid());
         context.startActivity(i);
@@ -276,7 +284,7 @@ public class MessageCompose extends K9Activity implements OnClickListener, OnFoc
         }
 
 
-        mAddressAdapter = new EmailAddressAdapter(this);
+        mAddressAdapter = EmailAddressAdapter.getInstance(this);
         mAddressValidator = new EmailAddressValidator();
 
         mFromView = (TextView)findViewById(R.id.from);
@@ -379,7 +387,7 @@ public class MessageCompose extends K9Activity implements OnClickListener, OnFoc
                 if ("mailto".equals(uri.getScheme()))
                 {
                     initializeFromMailTo(uri.toString());
-                } 
+                }
                 else
                 {
                     String toText = uri.getSchemeSpecificPart();
@@ -390,7 +398,10 @@ public class MessageCompose extends K9Activity implements OnClickListener, OnFoc
                 }
             }
         }
-        else if (Intent.ACTION_SEND.equals(action) /*|| Intent.ACTION_SEND_MULTIPLE.equals(action)*/)
+        //TODO: Use constant Intent.ACTION_SEND_MULTIPLE once we drop Android 1.5 support
+        else if (Intent.ACTION_SEND.equals(action)
+                 || Intent.ACTION_SENDTO.equals(action)
+                 || "android.intent.action.SEND_MULTIPLE".equals(action))
         {
             /*
              * Someone is trying to compose an email with an attachment, probably Pictures.
@@ -409,8 +420,8 @@ public class MessageCompose extends K9Activity implements OnClickListener, OnFoc
             }
 
             String type = intent.getType();
-            /* Use once we drop Android 1.5 support
-            if (Intent.ACTION_SEND_MULTIPLE.equals(action))
+            //TODO: Use constant Intent.ACTION_SEND_MULTIPLE once we drop Android 1.5 support
+            if ("android.intent.action.SEND_MULTIPLE".equals(action))
             {
                 ArrayList<Parcelable> list = intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM);
                 if (list != null)
@@ -429,7 +440,6 @@ public class MessageCompose extends K9Activity implements OnClickListener, OnFoc
                 }
             }
             else
-            */
             {
                 Uri stream = (Uri) intent.getParcelableExtra(Intent.EXTRA_STREAM);
                 if (stream != null && type != null)
@@ -572,12 +582,14 @@ public class MessageCompose extends K9Activity implements OnClickListener, OnFoc
         mDraftNeedsSaving = false;
     }
 
+    @Override
     public void onResume()
     {
         super.onResume();
         MessagingController.getInstance(getApplication()).addListener(mListener);
     }
 
+    @Override
     public void onPause()
     {
         super.onPause();
@@ -745,10 +757,41 @@ public class MessageCompose extends K9Activity implements OnClickListener, OnFoc
             for (int i = 0, count = mAttachments.getChildCount(); i < count; i++)
             {
                 Attachment attachment = (Attachment) mAttachments.getChildAt(i).getTag();
-                MimeBodyPart bp = new MimeBodyPart(new LocalStore.LocalAttachmentBody(attachment.uri, getApplication()));
-                bp.addHeader(MimeHeader.HEADER_CONTENT_TYPE, String.format("%s;\n name=\"%s\"", attachment.contentType, attachment.name));
+
+                MimeBodyPart bp = new MimeBodyPart(
+                    new LocalStore.LocalAttachmentBody(attachment.uri, getApplication()));
+
+                /*
+                 * Correctly encode the filename here. Otherwise the whole
+                 * header value (all parameters at once) will be encoded by
+                 * MimeHeader.writeTo().
+                 */
+                bp.addHeader(MimeHeader.HEADER_CONTENT_TYPE, String.format("%s;\n name=\"%s\"",
+                             attachment.contentType,
+                             EncoderUtil.encodeIfNecessary(attachment.name,
+                                                           EncoderUtil.Usage.WORD_ENTITY, 7)));
+
                 bp.addHeader(MimeHeader.HEADER_CONTENT_TRANSFER_ENCODING, "base64");
-                bp.addHeader(MimeHeader.HEADER_CONTENT_DISPOSITION, String.format("attachment;\n filename=\"%s\";\n size=%d", attachment.name, attachment.size));
+
+                /*
+                 * TODO: Oh the joys of MIME...
+                 *
+                 * From RFC 2183 (The Content-Disposition Header Field):
+                 * "Parameter values longer than 78 characters, or which
+                 *  contain non-ASCII characters, MUST be encoded as specified
+                 *  in [RFC 2184]."
+                 *
+                 * Example:
+                 *
+                 * Content-Type: application/x-stuff
+                 *  title*1*=us-ascii'en'This%20is%20even%20more%20
+                 *  title*2*=%2A%2A%2Afun%2A%2A%2A%20
+                 *  title*3="isn't it!"
+                 */
+                bp.addHeader(MimeHeader.HEADER_CONTENT_DISPOSITION, String.format(
+                                 "attachment;\n filename=\"%s\";\n size=%d",
+                                 attachment.name, attachment.size));
+
                 mp.addBodyPart(bp);
             }
 
@@ -908,9 +951,33 @@ public class MessageCompose extends K9Activity implements OnClickListener, OnFoc
      */
     private void onAddAttachment()
     {
+        if (K9.isGalleryBuggy())
+        {
+            if (K9.useGalleryBugWorkaround())
+            {
+                Toast.makeText(MessageCompose.this,
+                               getString(R.string.message_compose_use_workaround),
+                               Toast.LENGTH_LONG).show();
+            }
+            else
+            {
+                Toast.makeText(MessageCompose.this,
+                               getString(R.string.message_compose_buggy_gallery),
+                               Toast.LENGTH_LONG).show();
+            }
+        }
+
+        onAddAttachment2(K9.ACCEPTABLE_ATTACHMENT_SEND_TYPES[0]);
+    }
+
+    /**
+     * Kick off a picker for the specified MIME type and let Android take over.
+     */
+    private void onAddAttachment2(final String mime_type)
+    {
         Intent i = new Intent(Intent.ACTION_GET_CONTENT);
         i.addCategory(Intent.CATEGORY_OPENABLE);
-        i.setType(K9.ACCEPTABLE_ATTACHMENT_SEND_TYPES[0]);
+        i.setType(mime_type);
         startActivityForResult(Intent.createChooser(i, null), ACTIVITY_REQUEST_PICK_ATTACHMENT);
     }
 
@@ -978,11 +1045,13 @@ public class MessageCompose extends K9Activity implements OnClickListener, OnFoc
                 File f = new File(uriString.substring("file://".length()));
                 attachment.size = f.length();
             }
-            else {
+            else
+            {
                 Log.v(K9.LOG_TAG, "Not a file: " + uriString);
             }
         }
-        else {
+        else
+        {
             Log.v(K9.LOG_TAG, "old attachment.size: " + attachment.size);
         }
         Log.v(K9.LOG_TAG, "new attachment.size: " + attachment.size);
@@ -1077,6 +1146,7 @@ public class MessageCompose extends K9Activity implements OnClickListener, OnFoc
         }
     }
 
+    @Override
     public boolean onOptionsItemSelected(MenuItem item)
     {
         switch (item.getItemId())
@@ -1095,6 +1165,12 @@ public class MessageCompose extends K9Activity implements OnClickListener, OnFoc
                 break;
             case R.id.add_attachment:
                 onAddAttachment();
+                break;
+            case R.id.add_attachment_image:
+                onAddAttachment2("image/*");
+                break;
+            case R.id.add_attachment_video:
+                onAddAttachment2("video/*");
                 break;
             case R.id.choose_identity:
                 onChooseIdentity();
@@ -1120,10 +1196,31 @@ public class MessageCompose extends K9Activity implements OnClickListener, OnFoc
         }
     }
 
+    @Override
     public boolean onCreateOptionsMenu(Menu menu)
     {
         super.onCreateOptionsMenu(menu);
         getMenuInflater().inflate(R.menu.message_compose_option, menu);
+
+        /*
+         * Show the menu items "Add attachment (Image)" and "Add attachment (Video)"
+         * if the work-around for the Gallery bug is enabled (see Issue 1186).
+         */
+        int found = 0;
+        for (int i = menu.size() - 1; i >= 0; i--)
+        {
+            MenuItem item = menu.getItem(i);
+            int id = item.getItemId();
+            if ((id == R.id.add_attachment_image) ||
+                    (id == R.id.add_attachment_video))
+            {
+                item.setVisible(K9.useGalleryBugWorkaround());
+                found++;
+            }
+
+            // We found all the menu items we were looking for. So stop here.
+            if (found == 2) break;
+        }
 
         return true;
     }
@@ -1289,7 +1386,6 @@ public class MessageCompose extends K9Activity implements OnClickListener, OnFoc
                 {
                     for (Address address : message.getRecipients(RecipientType.TO))
                     {
-                        Identity identity = mAccount.findIdentity(address);
                         if (!mAccount.isAnIdentity(address))
                         {
                             addAddress(mToView, address);
@@ -1387,6 +1483,20 @@ public class MessageCompose extends K9Activity implements OnClickListener, OnFoc
                 {
                     addAddresses(mBccView, message.getRecipients(RecipientType.BCC));
                     mBccView.setVisibility(View.VISIBLE);
+                }
+
+                // Read In-Reply-To header from draft
+                final String[] inReplyTo = message.getHeader("In-Reply-To");
+                if ((inReplyTo != null) && (inReplyTo.length >= 1))
+                {
+                    mInReplyTo = inReplyTo[0];
+                }
+
+                // Read References header from draft
+                final String[] references = message.getHeader("References");
+                if ((references != null) && (references.length >= 1))
+                {
+                    mReferences = references[0];
                 }
 
                 if (!mSourceMessageProcessed)
@@ -1572,7 +1682,7 @@ public class MessageCompose extends K9Activity implements OnClickListener, OnFoc
                     mDraftUid = newUid;
                 }
             }
-            
+
             if (account.equals(mAccount) && (folder.equals(mFolder)))
             {
                 if (oldUid.equals(mSourceMessageUid))
@@ -1588,7 +1698,7 @@ public class MessageCompose extends K9Activity implements OnClickListener, OnFoc
     }
 
     private String decode(String s)
-        throws UnsupportedEncodingException
+    throws UnsupportedEncodingException
     {
         return URLDecoder.decode(s, "UTF-8");
     }
@@ -1596,14 +1706,15 @@ public class MessageCompose extends K9Activity implements OnClickListener, OnFoc
     /**
      * When we are launched with an intent that includes a mailto: URI, we can actually
      * gather quite a few of our message fields from it.
-     * 
+     *
      * @mailToString the href (which must start with "mailto:").
      */
-    private void initializeFromMailTo(String mailToString) {
-        
+    private void initializeFromMailTo(String mailToString)
+    {
+
         // Chop up everything between mailto: and ? to find recipients
         int index = mailToString.indexOf("?");
-        int length = "mailto".length() + 1; 
+        int length = "mailto".length() + 1;
         String to;
         try
         {
@@ -1611,13 +1722,13 @@ public class MessageCompose extends K9Activity implements OnClickListener, OnFoc
             if (index == -1)
             {
                 to = decode(mailToString.substring(length));
-            } 
+            }
             else
             {
                 to = decode(mailToString.substring(length, index));
             }
             mToView.setText(to);
-        } 
+        }
         catch (UnsupportedEncodingException e)
         {
             Log.e(K9.LOG_TAG, e.getMessage() + " while decoding '" + mailToString + "'");
@@ -1657,5 +1768,5 @@ public class MessageCompose extends K9Activity implements OnClickListener, OnFoc
         {
             mMessageContentView.setText(body.get(0));
         }
-    }    
+    }
 }

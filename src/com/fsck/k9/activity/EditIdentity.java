@@ -9,7 +9,6 @@ import android.widget.EditText;
 import android.widget.LinearLayout;
 import com.fsck.k9.Account;
 import com.fsck.k9.Identity;
-import com.fsck.k9.K9Activity;
 import com.fsck.k9.Preferences;
 import com.fsck.k9.R;
 import java.util.List;
@@ -74,7 +73,8 @@ public class EditIdentity extends K9Activity
         mSignatureUse = (CheckBox)findViewById(R.id.signature_use);
         mSignatureView = (EditText)findViewById(R.id.signature);
         mSignatureUse.setChecked(mIdentity.getSignatureUse());
-        mSignatureUse.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+        mSignatureUse.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener()
+        {
             public void onCheckedChanged(CompoundButton buttonView, boolean isChecked)
             {
                 if (isChecked)

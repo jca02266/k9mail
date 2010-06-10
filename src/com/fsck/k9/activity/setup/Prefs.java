@@ -6,21 +6,21 @@ import android.content.SharedPreferences;
 import android.content.SharedPreferences.Editor;
 import android.os.Bundle;
 import android.preference.CheckBoxPreference;
-import android.preference.EditTextPreference;
 import android.preference.ListPreference;
 import android.preference.Preference;
 import android.view.KeyEvent;
 import com.fsck.k9.K9;
-import com.fsck.k9.K9PreferenceActivity;
 import com.fsck.k9.Preferences;
 import com.fsck.k9.R;
 import com.fsck.k9.activity.DateFormatter;
+import com.fsck.k9.activity.K9PreferenceActivity;
 import com.fsck.k9.service.MailService;
 
 public class Prefs extends K9PreferenceActivity
 {
 
     private static final String PREFERENCE_THEME = "theme";
+    private static final String PREFERENCE_FONT_SIZE = "font_size";
     private static final String PREFERENCE_DATE_FORMAT = "dateFormat";
     private static final String PREFERENCE_BACKGROUND_OPS = "background_ops";
     private static final String PREFERENCE_DEBUG_LOGGING = "debug_logging";
@@ -28,20 +28,33 @@ public class Prefs extends K9PreferenceActivity
 
     private static final String PREFERENCE_ANIMATIONS = "animations";
     private static final String PREFERENCE_GESTURES = "gestures";
+    private static final String PREFERENCE_MANAGE_BACK = "manage_back";
     private static final String PREFERENCE_MESSAGELIST_STARS = "messagelist_stars";
     private static final String PREFERENCE_MESSAGELIST_CHECKBOXES = "messagelist_checkboxes";
     private static final String PREFERENCE_MESSAGELIST_TOUCHABLE = "messagelist_touchable";
 
+    private static final String PREFERENCE_MESSAGEVIEW_FIXEDWIDTH = "messageview_fixedwidth_font";
+
+    private static final String PREFERENCE_MEASURE_ACCOUNTS = "measure_accounts";
+    private static final String PREFERENCE_COUNT_SEARCH = "count_search";
+    private static final String PREFERENCE_GALLERY_BUG_WORKAROUND = "use_gallery_bug_workaround";
     private ListPreference mTheme;
     private ListPreference mDateFormat;
     private ListPreference mBackgroundOps;
     private CheckBoxPreference mDebugLogging;
     private CheckBoxPreference mSensitiveLogging;
     private CheckBoxPreference mGestures;
+    private CheckBoxPreference mManageBack;
     private CheckBoxPreference mAnimations;
     private CheckBoxPreference mStars;
     private CheckBoxPreference mCheckboxes;
     private CheckBoxPreference mTouchable;
+
+    private CheckBoxPreference mFixedWidth;
+
+    private CheckBoxPreference mMeasureAccounts;
+    private CheckBoxPreference mCountSearch;
+    private CheckBoxPreference mUseGalleryBugWorkaround;
 
 
     private String initBackgroundOps;
@@ -73,6 +86,16 @@ public class Prefs extends K9PreferenceActivity
                 mTheme.setSummary(mTheme.getEntries()[index]);
                 mTheme.setValue(summary);
                 return false;
+            }
+        });
+
+        findPreference(PREFERENCE_FONT_SIZE).setOnPreferenceClickListener(
+            new Preference.OnPreferenceClickListener()
+        {
+            public boolean onPreferenceClick(Preference preference)
+            {
+                onFontSizeSettings();
+                return true;
             }
         });
 
@@ -130,6 +153,10 @@ public class Prefs extends K9PreferenceActivity
         mGestures = (CheckBoxPreference)findPreference(PREFERENCE_GESTURES);
         mGestures.setChecked(K9.gesturesEnabled());
 
+        mManageBack = (CheckBoxPreference)findPreference(PREFERENCE_MANAGE_BACK);
+        mManageBack.setChecked(K9.manageBack());
+
+
         mStars = (CheckBoxPreference)findPreference(PREFERENCE_MESSAGELIST_STARS);
         mStars.setChecked(K9.messageListStars());
 
@@ -138,6 +165,19 @@ public class Prefs extends K9PreferenceActivity
 
         mTouchable = (CheckBoxPreference)findPreference(PREFERENCE_MESSAGELIST_TOUCHABLE);
         mTouchable.setChecked(K9.messageListTouchable());
+
+        mFixedWidth = (CheckBoxPreference)findPreference(PREFERENCE_MESSAGEVIEW_FIXEDWIDTH);
+        mFixedWidth.setChecked(K9.messageViewFixedWidthFont());
+
+
+        mMeasureAccounts = (CheckBoxPreference)findPreference(PREFERENCE_MEASURE_ACCOUNTS);
+        mMeasureAccounts.setChecked(K9.measureAccounts());
+
+        mCountSearch = (CheckBoxPreference)findPreference(PREFERENCE_COUNT_SEARCH);
+        mCountSearch.setChecked(K9.countSearchMessages());
+
+        mUseGalleryBugWorkaround = (CheckBoxPreference)findPreference(PREFERENCE_GALLERY_BUG_WORKAROUND);
+        mUseGalleryBugWorkaround.setChecked(K9.useGalleryBugWorkaround());
     }
 
     @Override
@@ -156,10 +196,17 @@ public class Prefs extends K9PreferenceActivity
 
         K9.setAnimations(mAnimations.isChecked());
         K9.setGesturesEnabled(mGestures.isChecked());
+        K9.setManageBack(mManageBack.isChecked());
         K9.setMessageListStars(mStars.isChecked());
         K9.setMessageListCheckboxes(mCheckboxes.isChecked());
-
         K9.setMessageListTouchable(mTouchable.isChecked());
+
+        K9.setMessageViewFixedWidthFont(mFixedWidth.isChecked());
+
+        K9.setMeasureAccounts(mMeasureAccounts.isChecked());
+        K9.setCountSearchMessages(mCountSearch.isChecked());
+
+        K9.setUseGalleryBugWorkaround(mUseGalleryBugWorkaround.isChecked());
 
         Editor editor = preferences.edit();
         K9.save(editor);
@@ -179,6 +226,11 @@ public class Prefs extends K9PreferenceActivity
             saveSettings();
         }
         return super.onKeyDown(keyCode, event);
+    }
+
+    private void onFontSizeSettings()
+    {
+        FontSizeSettings.actionEditSettings(this);
     }
 
 }

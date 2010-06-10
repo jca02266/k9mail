@@ -8,10 +8,11 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.os.PowerManager;
-import android.os.PowerManager.WakeLock;
 import android.util.Log;
 
 import com.fsck.k9.K9;
+import com.fsck.k9.helper.power.TracingPowerManager;
+import com.fsck.k9.helper.power.TracingPowerManager.TracingWakeLock;
 
 public class CoreReceiver extends BroadcastReceiver
 {
@@ -20,13 +21,13 @@ public class CoreReceiver extends BroadcastReceiver
 
     public static String WAKE_LOCK_ID = "com.fsck.k9.service.CoreReceiver.wakeLockId";
 
-    private static ConcurrentHashMap<Integer, WakeLock> wakeLocks = new ConcurrentHashMap<Integer, WakeLock>();
+    private static ConcurrentHashMap<Integer, TracingWakeLock> wakeLocks = new ConcurrentHashMap<Integer, TracingWakeLock>();
     private static AtomicInteger wakeLockSeq = new AtomicInteger(0);
 
     private static Integer getWakeLock(Context context)
     {
-        PowerManager pm = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
-        WakeLock wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "K9");
+        TracingPowerManager pm = TracingPowerManager.getPowerManager(context);
+        TracingWakeLock wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "CoreReceiver getWakeLock");
         wakeLock.setReferenceCounted(false);
         wakeLock.acquire(K9.BOOT_RECEIVER_WAKE_LOCK_TIMEOUT);
         Integer tmpWakeLockId = wakeLockSeq.getAndIncrement();
@@ -40,7 +41,7 @@ public class CoreReceiver extends BroadcastReceiver
     {
         if (wakeLockId != null)
         {
-            WakeLock wl = wakeLocks.remove(wakeLockId);
+            TracingWakeLock wl = wakeLocks.remove(wakeLockId);
             if (wl != null)
             {
                 if (K9.DEBUG)
@@ -54,6 +55,7 @@ public class CoreReceiver extends BroadcastReceiver
         }
     }
 
+    @Override
     public void onReceive(Context context, Intent intent)
     {
         Integer tmpWakeLockId = CoreReceiver.getWakeLock(context);

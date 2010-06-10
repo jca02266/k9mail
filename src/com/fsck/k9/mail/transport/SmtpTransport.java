@@ -3,10 +3,13 @@ package com.fsck.k9.mail.transport;
 
 import android.util.Log;
 import com.fsck.k9.K9;
-import com.fsck.k9.PeekableInputStream;
-import com.fsck.k9.codec.binary.Base64;
 import com.fsck.k9.mail.*;
 import com.fsck.k9.mail.Message.RecipientType;
+import com.fsck.k9.mail.filter.Base64;
+import com.fsck.k9.mail.filter.EOLConvertingOutputStream;
+import com.fsck.k9.mail.filter.LineWrapOutputStream;
+import com.fsck.k9.mail.filter.PeekableInputStream;
+import com.fsck.k9.mail.filter.SmtpDataStuffing;
 import com.fsck.k9.mail.store.TrustManagerFactory;
 
 import javax.net.ssl.SSLContext;
@@ -141,6 +144,7 @@ public class SmtpTransport extends Transport
         }
     }
 
+    @Override
     public void open() throws MessagingException
     {
         try
@@ -179,8 +183,15 @@ public class SmtpTransport extends Transport
 
             if (localHost.equals(localAddress.getHostAddress()))
             {
-                // IP was returned
-                localHost = "[" + localHost + "]";
+                // We don't have a FQDN, so use IP address.
+                if (localAddress instanceof Inet6Address)
+                {
+                    localHost = "[IPV6:" + localHost + "]";
+                }
+                else
+                {
+                    localHost = "[" + localHost + "]";
+                }
             }
 
             List<String> results = executeSimpleCommand("EHLO " + localHost);
@@ -284,6 +295,7 @@ public class SmtpTransport extends Transport
         }
     }
 
+    @Override
     public void sendMessage(Message message) throws MessagingException
     {
         close();
@@ -298,7 +310,7 @@ public class SmtpTransport extends Transport
         boolean possibleSend = false;
         try
         {
-        	//TODO: Add BODY=8BITMIME parameter if appropriate?
+            //TODO: Add BODY=8BITMIME parameter if appropriate?
             executeSimpleCommand("MAIL FROM: " + "<" + from[0].getAddress() + ">");
             for (Address address : message.getRecipients(RecipientType.TO))
             {
@@ -314,12 +326,12 @@ public class SmtpTransport extends Transport
             }
             message.setRecipients(RecipientType.BCC, null);
             executeSimpleCommand("DATA");
-            
+
             EOLConvertingOutputStream msgOut = new EOLConvertingOutputStream(
-                    new SmtpDataStuffing(
-                            new LineWrapOutputStream(
-                                    new BufferedOutputStream(mOut, 1024),
-                                    1000)));
+                new SmtpDataStuffing(
+                    new LineWrapOutputStream(
+                        new BufferedOutputStream(mOut, 1024),
+                        1000)));
 
             message.writeTo(msgOut);
 
@@ -344,6 +356,7 @@ public class SmtpTransport extends Transport
 
     }
 
+    @Override
     public void close()
     {
         try
@@ -409,10 +422,21 @@ public class SmtpTransport extends Transport
         return ret;
     }
 
-    private void writeLine(String s) throws IOException
+    private void writeLine(String s, boolean sensitive) throws IOException
     {
         if (K9.DEBUG)
-            Log.d(K9.LOG_TAG, "SMTP >>> " + s);
+        {
+            final String commandToLog;
+            if (sensitive && !K9.DEBUG_SENSITIVE)
+            {
+                commandToLog = "SMTP >>> *sensitive*";
+            }
+            else
+            {
+                commandToLog = "SMTP >>> " + s;
+    		}
+            Log.d(K9.LOG_TAG, commandToLog);
+        }
 
         /*
          * Note: We can use the string length to compute the buffer size since
@@ -450,10 +474,16 @@ public class SmtpTransport extends Transport
 
     private List<String> executeSimpleCommand(String command) throws IOException, MessagingException
     {
+    	return executeSimpleCommand(command, false);
+    }
+    
+    private List<String> executeSimpleCommand(String command, boolean sensitive)
+    throws IOException, MessagingException
+    {
         List<String> results = new ArrayList<String>();
         if (command != null)
         {
-            writeLine(command);
+            writeLine(command, sensitive);
         }
 
         boolean cont = false;
@@ -503,8 +533,8 @@ public class SmtpTransport extends Transport
         try
         {
             executeSimpleCommand("AUTH LOGIN");
-            executeSimpleCommand(new String(Base64.encodeBase64(username.getBytes())));
-            executeSimpleCommand(new String(Base64.encodeBase64(password.getBytes())));
+            executeSimpleCommand(new String(Base64.encodeBase64(username.getBytes())), true);
+            executeSimpleCommand(new String(Base64.encodeBase64(password.getBytes())), true);
         }
         catch (MessagingException me)
         {
@@ -524,7 +554,7 @@ public class SmtpTransport extends Transport
         data = new Base64().encode(data);
         try
         {
-            executeSimpleCommand("AUTH PLAIN " + new String(data));
+            executeSimpleCommand("AUTH PLAIN " + new String(data), true);
         }
         catch (MessagingException me)
         {
@@ -573,7 +603,7 @@ public class SmtpTransport extends Transport
         String b64CRAMString = new String(b64CRAM, "US-ASCII");
         try
         {
-            executeSimpleCommand(b64CRAMString);
+            executeSimpleCommand(b64CRAMString, true);
         }
         catch (MessagingException me)
         {

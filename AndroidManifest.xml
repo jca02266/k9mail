@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    android:versionCode="2512"
-    android:versionName="2.512" package="com.fsck.k9">
+    android:versionCode="2790"
+    android:versionName="2.790" package="com.fsck.k9">
 	<uses-sdk
 	   android:minSdkVersion="3"
 	   android:targetSdkVersion="4"
@@ -13,6 +13,7 @@
 	/>
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
     <uses-permission android:name="android.permission.READ_CONTACTS"/>
+    <uses-permission android:name="android.permission.READ_SYNC_SETTINGS"/>
     <uses-permission android:name="android.permission.READ_OWNER_DATA"/>
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
     <uses-permission android:name="android.permission.INTERNET"/>
@@ -54,6 +55,11 @@
         <activity
             android:name="com.fsck.k9.activity.setup.Prefs"
             android:label="@string/prefs_title"
+            >
+        </activity>
+        <activity
+            android:name="com.fsck.k9.activity.setup.FontSizeSettings"
+            android:label="@string/font_size_settings_title"
             >
         </activity>
         <activity
@@ -166,7 +172,8 @@
             -->
         </activity>
         <activity
-            android:name="com.fsck.k9.activity.MessageView">
+            android:name="com.fsck.k9.activity.MessageView"
+            android:theme="@android:style/Theme.Light">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <data
@@ -191,13 +198,11 @@
                 <data android:mimeType="*/*" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
-            <!-- Use once we drop Android 1.5 support
             <intent-filter>
                 <action android:name="android.intent.action.SEND_MULTIPLE" />
                 <data android:mimeType="*/*" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
-            -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <data android:scheme="mailto" />
@@ -233,6 +238,9 @@
             </intent-filter>
             <intent-filter>
                 <action android:name="android.net.conn.BACKGROUND_DATA_SETTING_CHANGED" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="com.android.sync.SYNC_CONN_STATUS_CHANGED" />
             </intent-filter>
               <intent-filter>
                 <action android:name="com.fsck.k9.service.BroadcastReceiver.scheduleIntent"/>

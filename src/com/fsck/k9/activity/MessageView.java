@@ -1,4 +1,3 @@
-
 package com.fsck.k9.activity;
 
 import android.content.Context;
@@ -6,6 +5,7 @@ import android.content.Intent;
 import android.content.res.Configuration;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Typeface;
 import android.graphics.drawable.Drawable;
 import android.media.MediaScannerConnection;
 import android.media.MediaScannerConnection.MediaScannerConnectionClient;
@@ -15,17 +15,22 @@ import android.os.Environment;
 import android.os.Handler;
 import android.provider.Contacts;
 import android.provider.Contacts.Intents;
+import android.text.SpannableString;
+import android.text.SpannableStringBuilder;
+import android.text.style.StyleSpan;
 import android.util.Config;
 import android.util.Log;
+import android.util.TypedValue;
 import android.view.*;
 import android.view.View.OnClickListener;
 import android.view.animation.AccelerateInterpolator;
 import android.view.animation.Animation;
 import android.view.animation.TranslateAnimation;
 import android.webkit.*;
-import android.webkit.CacheManager.CacheResult;
 import android.widget.*;
 import com.fsck.k9.*;
+import com.fsck.k9.controller.MessagingController;
+import com.fsck.k9.controller.MessagingListener;
 import com.fsck.k9.mail.*;
 import com.fsck.k9.mail.Message.RecipientType;
 import com.fsck.k9.mail.internet.MimeUtility;
@@ -35,22 +40,18 @@ import com.fsck.k9.mail.store.LocalStore.LocalTextBody;
 import com.fsck.k9.provider.AttachmentProvider;
 import org.apache.commons.io.IOUtils;
 import java.io.*;
-import java.net.HttpURLConnection;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
+import java.util.Set;
+import java.util.regex.Pattern;
 
-public class MessageView extends K9Activity
-        implements UrlInterceptHandler, OnClickListener
+public class MessageView extends K9Activity implements OnClickListener
 {
-    private static final String EXTRA_ACCOUNT = "com.fsck.k9.MessageView_account";
-    private static final String EXTRA_FOLDER = "com.fsck.k9.MessageView_folder";
-    private static final String EXTRA_MESSAGE = "com.fsck.k9.MessageView_message";
-    private static final String EXTRA_MESSAGE_UIDS = "com.fsck.k9.MessageView_messageUids";
+    private static final String EXTRA_MESSAGE_REFERENCE = "com.fsck.k9.MessageView_messageReference";
+    private static final String EXTRA_MESSAGE_REFERENCES = "com.fsck.k9.MessageView_messageReferences";
     private static final String EXTRA_NEXT = "com.fsck.k9.MessageView_next";
-
-    private static final String CID_PREFIX  = "http://cid/";
 
     private static final int ACTIVITY_CHOOSE_FOLDER_MOVE = 1;
 
@@ -62,10 +63,13 @@ public class MessageView extends K9Activity
     private TextView mToView;
     private TextView mCcView;
     private TextView mSubjectView;
+    public View chip;
     private CheckBox mFlagged;
     private int defaultSubjectColor;
     private WebView mMessageContentView;
     private LinearLayout mAttachments;
+    private LinearLayout mCcContainerView;
+    private TextView mAdditionalHeadersView;
     private View mAttachmentIcon;
     private View mDownloadingIcon;
     private View mShowPicturesSection;
@@ -75,9 +79,8 @@ public class MessageView extends K9Activity
     View previous_scrolling;
 
     private Account mAccount;
-    private String mFolder;
-    private String mMessageUid;
-    private ArrayList<String> mMessageUids;
+    private MessageReference mMessageReference;
+    private ArrayList<MessageReference> mMessageReferences;
 
     private Message mMessage;
 
@@ -87,9 +90,8 @@ public class MessageView extends K9Activity
     private int mLastDirection = PREVIOUS;
 
 
-    private String mNextMessageUid = null;
-    private String mPreviousMessageUid = null;
-
+    private MessageReference mNextMessage = null;
+    private MessageReference mPreviousMessage = null;
 
 
     private Menu optionsMenu = null;
@@ -97,6 +99,25 @@ public class MessageView extends K9Activity
     private Listener mListener = new Listener();
     private MessageViewHandler mHandler = new MessageViewHandler();
 
+    private FontSizes mFontSizes = K9.getFontSizes();
+
+    private static final Pattern IMGTAG_PATTERN = Pattern.compile("(?i)<img.*?src=\"http");
+
+    /**
+     * Pair class is only available since API Level 5, so we need
+     * this helper class unfortunately
+     */
+    private class HeaderEntry
+    {
+        public String label;
+        public String value;
+
+        public HeaderEntry(String label, String value)
+        {
+            this.label = label;
+            this.value = value;
+        }
+    }
 
     @Override
     public boolean dispatchKeyEvent(KeyEvent event)
@@ -114,6 +135,7 @@ public class MessageView extends K9Activity
         return ret;
     }
 
+    @Override
     public boolean onKeyDown(int keyCode, KeyEvent event)
     {
         switch (keyCode)
@@ -256,6 +278,8 @@ public class MessageView extends K9Activity
             final   String time,
             final   String to,
             final   String cc,
+            final   int accountColor,
+            final   boolean unread,
             final   boolean hasAttachments,
             final   boolean isDownloading,
             final   boolean flagged,
@@ -266,7 +290,14 @@ public class MessageView extends K9Activity
                 public void run()
                 {
                     setTitle(subject);
-                    mSubjectView.setText(subject);
+                    if (subject == null || subject.equals(""))
+                    {
+                        mSubjectView.setText(getText(R.string.general_no_subject));
+                    }
+                    else
+                    {
+                        mSubjectView.setText(subject);
+                    }
                     mFromView.setText(from);
                     if (date != null)
                     {
@@ -279,6 +310,9 @@ public class MessageView extends K9Activity
                     }
                     mTimeView.setText(time);
                     mToView.setText(to);
+
+                    mCcContainerView.setVisibility((cc != null && cc.length() > 0)? View.VISIBLE : View.GONE);
+
                     mCcView.setText(cc);
                     mAttachmentIcon.setVisibility(hasAttachments ? View.VISIBLE : View.GONE);
                     mDownloadingIcon.setVisibility(isDownloading ? View.VISIBLE : View.GONE);
@@ -292,6 +326,8 @@ public class MessageView extends K9Activity
                     }
                     mSubjectView.setTextColor(0xff000000 | defaultSubjectColor);
 
+                    chip.setBackgroundColor(accountColor);
+                    chip.getBackground().setAlpha(unread ? 255 : 127);
 
                     if (answered)
                     {
@@ -398,7 +434,118 @@ public class MessageView extends K9Activity
 
         }
 
+        /**
+         * Clear the text field for the additional headers display if they are
+         * not shown, to save UI resources.
+         */
+        public void hideAdditionalHeaders()
+        {
+            runOnUiThread(new Runnable()
+            {
+                public void run()
+                {
+                    mAdditionalHeadersView.setVisibility(View.GONE);
+                    mAdditionalHeadersView.setText("");
+                    mTopView.scrollTo(0, 0);
+                }
+            });
+        }
 
+        /**
+         * Set up and then show the additional headers view. Called by
+         * {@link #onShowAdditionalHeaders()} and
+         * {@link #setHeaders(Account, String, String, Message)}
+         * (when switching between messages).
+         */
+        public void showAdditionalHeaders()
+        {
+            runOnUiThread(new Runnable()
+            {
+                public void run()
+                {
+                    Integer messageToShow = null;
+                    try
+                    {
+                        // Retrieve additional headers
+                        boolean allHeadersDownloaded = mMessage.isSet(Flag.X_GOT_ALL_HEADERS);
+                        List<HeaderEntry> additionalHeaders = getAdditionalHeaders(mMessage);
+
+                        if (!additionalHeaders.isEmpty())
+                        {
+                            // Show the additional headers that we have got.
+                            setupAdditionalHeadersView(additionalHeaders);
+                            mAdditionalHeadersView.setVisibility(View.VISIBLE);
+                        }
+
+                        if (!allHeadersDownloaded)
+                        {
+                            /*
+                             * Tell the user about the "save all headers" setting
+                             *
+                             * NOTE: This is only a temporary solution... in fact,
+                             * the system should download headers on-demand when they
+                             * have not been saved in their entirety initially.
+                             */
+                            messageToShow = R.string.message_additional_headers_not_downloaded;
+                        }
+                        else if (additionalHeaders.isEmpty())
+                        {
+                            // All headers have been downloaded, but there are no additional headers.
+                            messageToShow = R.string.message_no_additional_headers_available;
+                        }
+                    }
+                    catch (MessagingException e)
+                    {
+                        messageToShow = R.string.message_additional_headers_retrieval_failed;
+                    }
+
+                    // Show a message to the user, if any
+                    if (messageToShow != null)
+                    {
+                        Toast toast = Toast.makeText(MessageView.this, messageToShow, Toast.LENGTH_LONG);
+                        toast.setGravity(Gravity.CENTER_VERTICAL | Gravity.CENTER_HORIZONTAL, 0, 0);
+                        toast.show();
+                    }
+                }
+            });
+        }
+
+        /**
+         * Set up the additional headers text view with the supplied header data.
+         *
+         * @param additionalHeaders
+         *          List of header entries. Each entry consists of a header
+         *          name and a header value. Header names may appear multiple
+         *          times.
+         *
+         * This method is always called from within the UI thread by
+         * {@link #showAdditionalHeaders()}.
+         */
+        private void setupAdditionalHeadersView(final List<HeaderEntry> additionalHeaders)
+        {
+            SpannableStringBuilder sb = new SpannableStringBuilder();
+            boolean first = true;
+            for (HeaderEntry additionalHeader : additionalHeaders)
+            {
+                if (!first)
+                {
+                    sb.append("\n");
+                }
+                else
+                {
+                    first = false;
+                }
+
+                StyleSpan boldSpan = new StyleSpan(Typeface.BOLD);
+                SpannableString label = new SpannableString(additionalHeader.label + ": ");
+                label.setSpan(boldSpan, 0, label.length(), 0);
+
+                sb.append(label);
+                sb.append(additionalHeader.value.replaceAll("\\r\\n", ""));
+            }
+
+            mAdditionalHeadersView.setText(sb);
+        }
     }
 
     class Attachment
@@ -412,18 +559,16 @@ public class MessageView extends K9Activity
         public ImageView iconView;
     }
 
-    public static void actionView(Context context, Account account, String folder, String messageUid, ArrayList<String> folderUids)
+    public static void actionView(Context context, MessageReference messRef, List<MessageReference> messReferences)
     {
-        actionView(context, account, folder, messageUid, folderUids, null);
+        actionView(context, messRef, messReferences, null);
     }
 
-    public static void actionView(Context context, Account account, String folder, String messageUid, ArrayList<String> folderUids, Bundle extras)
+    public static void actionView(Context context, MessageReference messRef, List<MessageReference> messReferences, Bundle extras)
     {
         Intent i = new Intent(context, MessageView.class);
-        i.putExtra(EXTRA_ACCOUNT, account.getUuid());
-        i.putExtra(EXTRA_FOLDER, folder);
-        i.putExtra(EXTRA_MESSAGE, messageUid);
-        i.putExtra(EXTRA_MESSAGE_UIDS, folderUids);
+        i.putExtra(EXTRA_MESSAGE_REFERENCE, messRef);
+        i.putExtra(EXTRA_MESSAGE_REFERENCES, (Serializable)messReferences);
         if (extras != null)
         {
             i.putExtras(extras);
@@ -431,9 +576,10 @@ public class MessageView extends K9Activity
         context.startActivity(i);
     }
 
+    @Override
     public void onCreate(Bundle icicle)
     {
-        super.onCreate(icicle);
+        super.onCreate(icicle, false);
 
 
         requestWindowFeature(Window.FEATURE_INDETERMINATE_PROGRESS);
@@ -445,9 +591,13 @@ public class MessageView extends K9Activity
         mFromView = (TextView)findViewById(R.id.from);
         mToView = (TextView)findViewById(R.id.to);
         mCcView = (TextView)findViewById(R.id.cc);
+        mCcContainerView = (LinearLayout)findViewById(R.id.cc_container);
         mSubjectView = (TextView)findViewById(R.id.subject);
         defaultSubjectColor = mSubjectView.getCurrentTextColor();
 
+        mAdditionalHeadersView = (TextView)findViewById(R.id.additional_headers_view);
+
+        chip = findViewById(R.id.chip);
 
         mDateView = (TextView)findViewById(R.id.date);
         mTimeView = (TextView)findViewById(R.id.time);
@@ -480,6 +630,18 @@ public class MessageView extends K9Activity
         //webSettings.setBuiltInZoomControls(true);
         webSettings.setLayoutAlgorithm(WebSettings.LayoutAlgorithm.NARROW_COLUMNS);
 
+        webSettings.setTextSize(mFontSizes.getMessageViewContent());
+
+        mFromView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, mFontSizes.getMessageViewSender());
+        mToView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, mFontSizes.getMessageViewTo());
+        ((TextView)findViewById(R.id.to_label)).setTextSize(TypedValue.COMPLEX_UNIT_DIP, mFontSizes.getMessageViewTo());
+        mCcView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, mFontSizes.getMessageViewCC());
+        ((TextView)findViewById(R.id.cc_label)).setTextSize(TypedValue.COMPLEX_UNIT_DIP, mFontSizes.getMessageViewCC());
+        mSubjectView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, mFontSizes.getMessageViewSubject());
+        mTimeView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, mFontSizes.getMessageViewTime());
+        mDateView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, mFontSizes.getMessageViewDate());
+        mAdditionalHeadersView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, mFontSizes.getMessageViewAdditionalHeaders());
+        mAdditionalHeadersView.setVisibility(View.GONE);
         mAttachments.setVisibility(View.GONE);
         mAttachmentIcon.setVisibility(View.GONE);
 
@@ -490,6 +652,9 @@ public class MessageView extends K9Activity
         setOnClickListener(R.id.forward);
         setOnClickListener(R.id.next);
         setOnClickListener(R.id.previous);
+
+        // To show full header
+        setOnClickListener(R.id.header_container);
 
         setOnClickListener(R.id.reply_scrolling);
 //       setOnClickListener(R.id.reply_all_scrolling);
@@ -508,21 +673,15 @@ public class MessageView extends K9Activity
 
         if (icicle!=null)
         {
-            String accountUuid = icicle.getString(EXTRA_ACCOUNT);
-            mAccount = Preferences.getPreferences(this).getAccount(accountUuid);
-            mFolder = icicle.getString(EXTRA_FOLDER);
-            mMessageUid = icicle.getString(EXTRA_MESSAGE);
-            mMessageUids = icicle.getStringArrayList(EXTRA_MESSAGE_UIDS);
+            mMessageReference = (MessageReference)icicle.getSerializable(EXTRA_MESSAGE_REFERENCE);
+            mMessageReferences = (ArrayList<MessageReference>)icicle.getSerializable(EXTRA_MESSAGE_REFERENCES);
         }
         else
         {
             if (uri==null)
             {
-                String accountUuid = intent.getStringExtra(EXTRA_ACCOUNT);
-                mAccount = Preferences.getPreferences(this).getAccount(accountUuid);
-                mFolder = intent.getStringExtra(EXTRA_FOLDER);
-                mMessageUid = intent.getStringExtra(EXTRA_MESSAGE);
-                mMessageUids = intent.getStringArrayListExtra(EXTRA_MESSAGE_UIDS);
+                mMessageReference = (MessageReference)intent.getSerializableExtra(EXTRA_MESSAGE_REFERENCE);
+                mMessageReferences = (ArrayList<MessageReference>)intent.getSerializableExtra(EXTRA_MESSAGE_REFERENCES);
             }
             else
             {
@@ -547,9 +706,13 @@ public class MessageView extends K9Activity
                         Toast.makeText(this, "Invalid account id: " + accountId, Toast.LENGTH_LONG).show();
                         return;
                     }
-                    mFolder = segmentList.get(1);
-                    mMessageUid = segmentList.get(2);
-                    mMessageUids = new ArrayList<String>();
+
+                    mMessageReference = new MessageReference();
+                    mMessageReference.accountUuid = mAccount.getUuid();
+                    mMessageReference.folderName = segmentList.get(1);
+                    mMessageReference.uid = segmentList.get(2);
+
+                    mMessageReferences = new ArrayList<MessageReference>();
                 }
                 else
                 {
@@ -559,6 +722,8 @@ public class MessageView extends K9Activity
                 }
             }
         }
+        if (K9.DEBUG)
+            Log.d(K9.LOG_TAG, "MessageView got message " + mMessageReference);
 
         next = findViewById(R.id.next);
         previous = findViewById(R.id.previous);
@@ -575,7 +740,8 @@ public class MessageView extends K9Activity
         {
             next.requestFocus();
         }
-
+        // Perhaps the hideButtons should be global, instead of account-specific
+        mAccount = Preferences.getPreferences(this).getAccount(mMessageReference.accountUuid);
         Account.HideButtons hideButtons = mAccount.getHideMessageViewButtons();
 
         //MessagingController.getInstance(getApplication()).addListener(mListener);
@@ -599,21 +765,24 @@ public class MessageView extends K9Activity
                 showButtons();
             }
         }
-        displayMessage(mMessageUid);
+        displayMessage(mMessageReference);
     }
 
     @Override
     protected void onSaveInstanceState(Bundle outState)
     {
-        outState.putString(EXTRA_ACCOUNT, mAccount.getUuid());
-        outState.putString(EXTRA_FOLDER, mFolder);
-        outState.putString(EXTRA_MESSAGE, mMessageUid);
-        outState.putStringArrayList(EXTRA_MESSAGE_UIDS, mMessageUids);
+        outState.putSerializable(EXTRA_MESSAGE_REFERENCE, mMessageReference);
+        outState.putSerializable(EXTRA_MESSAGE_REFERENCES, mMessageReferences);
     }
 
-    private void displayMessage(String uid)
+    private void displayMessage(MessageReference ref)
     {
-        mMessageUid = uid;
+        mMessageReference = ref;
+        if (K9.DEBUG)
+            Log.d(K9.LOG_TAG, "MessageView displaying message " + mMessageReference);
+
+        mAccount = Preferences.getPreferences(this).getAccount(ref.accountUuid);
+
         mMessageContentView.getSettings().setBlockNetworkImage(true);
         K9.setBlockNetworkLoads(mMessageContentView.getSettings(), true);
 
@@ -621,8 +790,8 @@ public class MessageView extends K9Activity
         findSurroundingMessagesUid();
 
 
-        boolean enableNext = (mNextMessageUid != null);
-        boolean enablePrev = (mPreviousMessageUid != null);
+        boolean enableNext = (mNextMessage != null);
+        boolean enablePrev = (mPreviousMessage != null);
 
         if (next.isEnabled() != enableNext)
             next.setEnabled(enableNext);
@@ -636,8 +805,8 @@ public class MessageView extends K9Activity
 
         MessagingController.getInstance(getApplication()).loadMessageForView(
             mAccount,
-            mFolder,
-            mMessageUid,
+            mMessageReference.folderName,
+            mMessageReference.uid,
             mListener);
 
         mTopView.scrollTo(0, 0);
@@ -674,16 +843,17 @@ public class MessageView extends K9Activity
 
     private void findSurroundingMessagesUid()
     {
-        mNextMessageUid = mPreviousMessageUid = null;
-        int i = mMessageUids.indexOf(mMessageUid);
+        mNextMessage = mPreviousMessage = null;
+        int i = mMessageReferences.indexOf(mMessageReference);
         if (i < 0)
             return;
         if (i != 0)
-            mNextMessageUid = mMessageUids.get(i - 1);
-        if (i != (mMessageUids.size() - 1))
-            mPreviousMessageUid = mMessageUids.get(i + 1);
+            mNextMessage = mMessageReferences.get(i - 1);
+        if (i != (mMessageReferences.size() - 1))
+            mPreviousMessage = mMessageReferences.get(i + 1);
     }
 
+    @Override
     public void onResume()
     {
         super.onResume();
@@ -697,26 +867,25 @@ public class MessageView extends K9Activity
 
             findSurroundingMessagesUid();
 
-            // Remove this message's Uid locally
-            mMessageUids.remove(messageToDelete.getUid());
+            mMessageReferences.remove(mMessageReference);
 
             MessagingController.getInstance(getApplication()).deleteMessages(
                 new Message[] { messageToDelete },
                 null);
 
-            if (mLastDirection == NEXT && mNextMessageUid != null)
+            if (mLastDirection == NEXT && mNextMessage != null)
             {
                 onNext(K9.isAnimations());
             }
-            else if (mLastDirection == PREVIOUS && mPreviousMessageUid != null)
+            else if (mLastDirection == PREVIOUS && mPreviousMessage != null)
             {
                 onPrevious(K9.isAnimations());
             }
-            else if (mNextMessageUid != null)
+            else if (mNextMessage != null)
             {
                 onNext(K9.isAnimations());
             }
-            else if (mPreviousMessageUid != null)
+            else if (mPreviousMessage != null)
             {
                 onPrevious(K9.isAnimations());
             }
@@ -802,7 +971,7 @@ public class MessageView extends K9Activity
             {
                 mMessage.setFlag(Flag.FLAGGED, !mMessage.isSet(Flag.FLAGGED));
                 setHeaders(mAccount, mMessage.getFolder().getName(), mMessage.getUid(), mMessage);
-                setMenuFlag();
+                prepareMenuItems();
             }
             catch (MessagingException me)
             {
@@ -825,8 +994,8 @@ public class MessageView extends K9Activity
         }
         Intent intent = new Intent(this, ChooseFolder.class);
         intent.putExtra(ChooseFolder.EXTRA_ACCOUNT, mAccount.getUuid());
-        intent.putExtra(ChooseFolder.EXTRA_CUR_FOLDER, mFolder);
-        intent.putExtra(ChooseFolder.EXTRA_MESSAGE_UID, mMessageUid);
+        intent.putExtra(ChooseFolder.EXTRA_CUR_FOLDER, mMessageReference.folderName);
+        intent.putExtra(ChooseFolder.EXTRA_MESSAGE, mMessageReference);
         startActivityForResult(intent, ACTIVITY_CHOOSE_FOLDER_MOVE);
     }
 
@@ -844,9 +1013,46 @@ public class MessageView extends K9Activity
         }
         Intent intent = new Intent(this, ChooseFolder.class);
         intent.putExtra(ChooseFolder.EXTRA_ACCOUNT, mAccount.getUuid());
-        intent.putExtra(ChooseFolder.EXTRA_CUR_FOLDER, mFolder);
-        intent.putExtra(ChooseFolder.EXTRA_MESSAGE_UID, mMessageUid);
+        intent.putExtra(ChooseFolder.EXTRA_CUR_FOLDER, mMessageReference.folderName);
+        intent.putExtra(ChooseFolder.EXTRA_MESSAGE, mMessageReference);
         startActivityForResult(intent, ACTIVITY_CHOOSE_FOLDER_COPY);
+    }
+
+    private void onShowAdditionalHeaders()
+    {
+        int currentVisibility = mAdditionalHeadersView.getVisibility();
+
+        if (currentVisibility == View.VISIBLE)
+        {
+            mHandler.hideAdditionalHeaders();
+        }
+        else
+        {
+            mHandler.showAdditionalHeaders();
+        }
+    }
+
+    private List<HeaderEntry> getAdditionalHeaders(final Message message)
+    throws MessagingException
+    {
+        List<HeaderEntry> additionalHeaders = new LinkedList<HeaderEntry>();
+
+        // Do not include the following headers, since they are always visible anyway
+        Set<String> headerNames = new HashSet<String>(message.getHeaderNames());
+        headerNames.remove("To");
+        headerNames.remove("From");
+        headerNames.remove("Cc");
+        headerNames.remove("Subject");
+
+        for (String headerName : headerNames)
+        {
+            String[] headerValues = message.getHeader(headerName);
+            for (String headerValue : headerValues)
+            {
+                additionalHeaders.add(new HeaderEntry(headerName, headerValue));
+            }
+        }
+        return additionalHeaders;
     }
 
     @Override
@@ -863,9 +1069,9 @@ public class MessageView extends K9Activity
                     return;
                 String destFolderName = data.getStringExtra(ChooseFolder.EXTRA_NEW_FOLDER);
                 String srcFolderName = data.getStringExtra(ChooseFolder.EXTRA_CUR_FOLDER);
-                String uid = data.getStringExtra(ChooseFolder.EXTRA_MESSAGE_UID);
+                MessageReference ref = (MessageReference)data.getSerializableExtra(ChooseFolder.EXTRA_MESSAGE);
 
-                if (uid.equals(mMessageUid) && srcFolderName.equals(mFolder))
+                if (mMessageReference.equals(ref))
                 {
 
                     switch (requestCode)
@@ -896,7 +1102,7 @@ public class MessageView extends K9Activity
     @Override
     protected void onNext(boolean animate)
     {
-        if (mNextMessageUid == null)
+        if (mNextMessage == null)
         {
             Toast.makeText(this, getString(R.string.end_of_folder), Toast.LENGTH_SHORT).show();
             return;
@@ -906,13 +1112,14 @@ public class MessageView extends K9Activity
         {
             mTopView.startAnimation(outToLeftAnimation());
         }
-        displayMessage(mNextMessageUid);
+        displayMessage(mNextMessage);
         next.requestFocus();
     }
 
+    @Override
     protected void onPrevious(boolean animate)
     {
-        if (mPreviousMessageUid == null)
+        if (mPreviousMessage == null)
         {
             Toast.makeText(this, getString(R.string.end_of_folder), Toast.LENGTH_SHORT).show();
             return;
@@ -923,7 +1130,7 @@ public class MessageView extends K9Activity
         {
             mTopView.startAnimation(inFromRightAnimation());
         }
-        displayMessage(mPreviousMessageUid);
+        displayMessage(mPreviousMessage);
         previous.requestFocus();
     }
 
@@ -933,10 +1140,19 @@ public class MessageView extends K9Activity
         {
             MessagingController.getInstance(getApplication()).setFlag(
                 mAccount,
-                mFolder,
+                mMessageReference.folderName,
                 new String[] { mMessage.getUid() },
                 Flag.SEEN,
                 false);
+            try
+            {
+                mMessage.setFlag(Flag.SEEN, false);
+                setHeaders(mAccount, mMessage.getFolder().getName(), mMessage.getUid(), mMessage);
+            }
+            catch (Exception e)
+            {
+                Log.e(K9.LOG_TAG, "Unable to unset SEEN flag on message", e);
+            }
         }
     }
 
@@ -1022,7 +1238,7 @@ public class MessageView extends K9Activity
         mShowPicturesSection.setVisibility(View.GONE);
     }
 
-  
+
     public void onClick(View view)
     {
         switch (view.getId())
@@ -1062,9 +1278,13 @@ public class MessageView extends K9Activity
             case R.id.show_pictures:
                 onShowPictures();
                 break;
+            case R.id.header_container:
+                onShowAdditionalHeaders();
+                break;
         }
     }
 
+    @Override
     public boolean onOptionsItemSelected(MenuItem item)
     {
         switch (item.getItemId())
@@ -1096,6 +1316,9 @@ public class MessageView extends K9Activity
             case R.id.copy:
                 onCopy();
                 break;
+            case R.id.show_full_header:
+                onShowAdditionalHeaders();
+                break;
             default:
                 return super.onOptionsItemSelected(item);
         }
@@ -1108,7 +1331,7 @@ public class MessageView extends K9Activity
         super.onCreateOptionsMenu(menu);
         getMenuInflater().inflate(R.menu.message_view_option, menu);
         optionsMenu = menu;
-        setMenuFlag();
+        prepareMenuItems();
         if (MessagingController.getInstance(getApplication()).isCopyCapable(mAccount) == false)
         {
             menu.findItem(R.id.copy).setVisible(false);
@@ -1123,11 +1346,11 @@ public class MessageView extends K9Activity
     @Override
     public boolean onPrepareOptionsMenu(Menu menu)
     {
-        setMenuFlag();
+        prepareMenuItems();
         return super.onPrepareOptionsMenu(menu);
     }
 
-    private void setMenuFlag()
+    private void prepareMenuItems()
     {
         Menu menu = optionsMenu;
         if (menu != null)
@@ -1137,68 +1360,14 @@ public class MessageView extends K9Activity
             {
                 flagItem.setTitle((mMessage.isSet(Flag.FLAGGED) ? R.string.unflag_action : R.string.flag_action));
             }
-        }
-    }
 
-    public CacheResult service(String url, Map<String, String> headers)
-    {
-        if (url.startsWith(CID_PREFIX) && mMessage != null)
-        {
-            try
+            MenuItem additionalHeadersItem = menu.findItem(R.id.show_full_header);
+            if (additionalHeadersItem != null)
             {
-                String contentId = url.substring(CID_PREFIX.length());
-                final Part part = MimeUtility.findPartByContentId(mMessage, "<" + contentId + ">");
-                if (part != null)
-                {
-                    CacheResult cr = new CacheManager.CacheResult();
-                    // TODO looks fixed in Mainline, cr.setInputStream
-                    // part.getBody().writeTo(cr.getStream());
-                    return cr;
-                }
-            }
-            catch (Exception e)
-            {
-                // TODO
+                additionalHeadersItem.setTitle((mAdditionalHeadersView.getVisibility() == View.VISIBLE) ?
+                                               R.string.hide_full_header_action : R.string.show_full_header_action);
             }
         }
-        return null;
-    }
-
-    public PluginData getPluginData(String url, Map<String, String> headers)
-    {
-        if (url.startsWith(CID_PREFIX) && mMessage != null)
-        {
-            try
-            {
-                String contentId = url.substring(CID_PREFIX.length());
-                final Part part = MimeUtility.findPartByContentId(mMessage, "<" + contentId + ">");
-                if (part != null)
-                {
-                    Map<String, String[]> splittedHeaders = new HashMap<String, String[]>();
-                    for (String headerName : headers.keySet())
-                    {
-                        String heaverValue = headers.get(headerName);
-                        //There must be a better way to do this split and trim...
-                        String[] headerValues = heaverValue.split(",");
-                        for (int i=0; i<headerValues.length; i++)
-                        {
-                            headerValues[i] = headerValues[i].trim();
-                        }
-                        splittedHeaders.put(headerName, headerValues);
-                    }
-                    return new PluginData(
-                               part.getBody().getInputStream(),
-                               part.getSize(),
-                               splittedHeaders,
-                               HttpURLConnection.HTTP_OK);
-                }
-            }
-            catch (Exception e)
-            {
-                // TODO
-            }
-        }
-        return null;
     }
 
     private Bitmap getPreviewIcon(Attachment attachment) throws MessagingException
@@ -1346,24 +1515,34 @@ public class MessageView extends K9Activity
     {
         String subjectText = message.getSubject();
         String fromText = Address.toFriendly(message.getFrom());
-        String dateText = Utility.isDateToday(message.getSentDate()) ?
-                          null :
-                          getDateFormat().format(message.getSentDate());
+        String dateText = getDateFormat().format(message.getSentDate());
         String timeText = getTimeFormat().format(message.getSentDate());
         String toText = Address.toFriendly(message.getRecipients(RecipientType.TO));
         String ccText = Address.toFriendly(message.getRecipients(RecipientType.CC));
+
+        int color = mAccount.getChipColor();
         boolean hasAttachments = ((LocalMessage) message).getAttachmentCount() > 0;
         boolean isDownloading = !message.isSet(Flag.X_DOWNLOADED_FULL);
+        boolean unread = !message.isSet(Flag.SEEN);
+
         mHandler.setHeaders(subjectText,
                             fromText,
                             dateText,
                             timeText,
                             toText,
                             ccText,
+                            color,
+                            unread,
                             hasAttachments,
                             isDownloading,
                             message.isSet(Flag.FLAGGED),
                             message.isSet(Flag.ANSWERED));
+
+        // Update additional headers display, if visible
+        if (mAdditionalHeadersView.getVisibility() == View.VISIBLE)
+        {
+            mHandler.showAdditionalHeaders();
+        }
     }
 
     class Listener extends MessagingListener
@@ -1373,14 +1552,15 @@ public class MessageView extends K9Activity
         public void loadMessageForViewHeadersAvailable(Account account, String folder, String uid,
                 final Message message)
         {
-            if (!mMessageUid.equals(uid))
+            if (!mMessageReference.uid.equals(uid) || !mMessageReference.folderName.equals(folder)
+                    || !mMessageReference.accountUuid.equals(account.getUuid()))
             {
                 return;
             }
 
             MessageView.this.mMessage = message;
             if (!message.isSet(Flag.X_DOWNLOADED_FULL)
-                && !message.isSet(Flag.X_DOWNLOADED_PARTIAL))
+                    && !message.isSet(Flag.X_DOWNLOADED_PARTIAL))
             {
                 mHandler.post(new Runnable()
                 {
@@ -1396,10 +1576,7 @@ public class MessageView extends K9Activity
             }
             catch (MessagingException me)
             {
-                if (Config.LOGV)
-                {
-                    Log.v(K9.LOG_TAG, "loadMessageForViewHeadersAvailable", me);
-                }
+                Log.e(K9.LOG_TAG, "loadMessageForViewHeadersAvailable", me);
             }
         }
 
@@ -1407,7 +1584,8 @@ public class MessageView extends K9Activity
         public void loadMessageForViewBodyAvailable(Account account, String folder, String uid,
                 Message message)
         {
-            if (!mMessageUid.equals(uid))
+            if (!mMessageReference.uid.equals(uid) || !mMessageReference.folderName.equals(folder)
+                    || !mMessageReference.accountUuid.equals(account.getUuid()))
             {
                 return;
             }
@@ -1415,8 +1593,8 @@ public class MessageView extends K9Activity
             try
             {
                 if (MessageView.this.mMessage!=null
-                    && MessageView.this.mMessage.isSet(Flag.X_DOWNLOADED_PARTIAL)
-                    && message.isSet(Flag.X_DOWNLOADED_FULL))
+                        && MessageView.this.mMessage.isSet(Flag.X_DOWNLOADED_PARTIAL)
+                        && message.isSet(Flag.X_DOWNLOADED_FULL))
                 {
 
                     setHeaders(account, folder, uid, message);
@@ -1465,7 +1643,7 @@ public class MessageView extends K9Activity
                             mMessageContentView.loadDataWithBaseURL("email://", emailText, "text/html", "utf-8", null);
                         }
                     });
-                    mHandler.showShowPictures(text.contains("<img"));
+                    mHandler.showShowPictures(IMGTAG_PATTERN.matcher(text).find());
                 }
                 else
                 {
@@ -1494,7 +1672,8 @@ public class MessageView extends K9Activity
         public void loadMessageForViewFailed(Account account, String folder, String uid,
                                              final Throwable t)
         {
-            if (!mMessageUid.equals(uid))
+            if (!mMessageReference.uid.equals(uid) || !mMessageReference.folderName.equals(folder)
+                    || !mMessageReference.accountUuid.equals(account.getUuid()))
             {
                 return;
             }
@@ -1524,7 +1703,8 @@ public class MessageView extends K9Activity
         public void loadMessageForViewFinished(Account account, String folder, String uid,
                                                Message message)
         {
-            if (!mMessageUid.equals(uid))
+            if (!mMessageReference.uid.equals(uid) || !mMessageReference.folderName.equals(folder)
+                    || !mMessageReference.accountUuid.equals(account.getUuid()))
             {
                 return;
             }
@@ -1541,7 +1721,8 @@ public class MessageView extends K9Activity
         @Override
         public void loadMessageForViewStarted(Account account, String folder, String uid)
         {
-            if (!mMessageUid.equals(uid))
+            if (!mMessageReference.uid.equals(uid) || !mMessageReference.folderName.equals(folder)
+                    || !mMessageReference.accountUuid.equals(account.getUuid()))
             {
                 return;
             }

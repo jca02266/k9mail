@@ -2,7 +2,6 @@ package com.fsck.k9.activity;
 
 import android.app.AlertDialog;
 import android.app.Dialog;
-import android.app.NotificationManager;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
@@ -10,11 +9,12 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.PowerManager;
-import android.os.PowerManager.WakeLock;
 import android.util.Config;
 import android.util.Log;
+import android.util.TypedValue;
 import android.view.*;
 import android.view.ContextMenu.ContextMenuInfo;
+import android.view.View.OnClickListener;
 import android.widget.*;
 import android.widget.AdapterView.AdapterContextMenuInfo;
 import android.widget.AdapterView.OnItemClickListener;
@@ -22,6 +22,11 @@ import com.fsck.k9.*;
 import com.fsck.k9.Account.FolderMode;
 import com.fsck.k9.activity.setup.AccountSettings;
 import com.fsck.k9.activity.setup.FolderSettings;
+import com.fsck.k9.controller.MessagingController;
+import com.fsck.k9.controller.MessagingListener;
+import com.fsck.k9.helper.power.TracingPowerManager;
+import com.fsck.k9.helper.power.TracingPowerManager.TracingWakeLock;
+import com.fsck.k9.mail.Flag;
 import com.fsck.k9.mail.Folder;
 import com.fsck.k9.mail.Message;
 import com.fsck.k9.mail.MessagingException;
@@ -45,10 +50,7 @@ public class FolderList extends K9ListActivity
     private static final String EXTRA_ACCOUNT = "account";
 
     private static final String EXTRA_INITIAL_FOLDER = "initialFolder";
-
-    //private static final String STATE_CURRENT_FOLDER = "com.fsck.k9.activity.folderlist_folder";
-
-    private static final String EXTRA_CLEAR_NOTIFICATION = "clearNotification";
+    private static final String EXTRA_FROM_NOTIFICATION = "fromNotification";
 
     private static final boolean REFRESH_REMOTE = true;
 
@@ -64,6 +66,8 @@ public class FolderList extends K9ListActivity
 
     private int mUnreadMessageCount;
 
+    private FontSizes mFontSizes = K9.getFontSizes();
+
     class FolderListHandler extends Handler
     {
 
@@ -73,7 +77,8 @@ public class FolderList extends K9ListActivity
             {
                 public void run()
                 {
-                    String dispString = mAdapter.mListener.formatHeader(FolderList.this, getString(R.string.folder_list_title, mAccount.getDescription()), mUnreadMessageCount, getTimeFormat());
+                    String dispString = mAdapter.mListener.formatHeader(FolderList.this,
+                                        getString(R.string.folder_list_title, mAccount.getDescription()), mUnreadMessageCount, getTimeFormat());
 
 
                     setTitle(dispString);
@@ -172,12 +177,13 @@ public class FolderList extends K9ListActivity
 
     private void checkMail(FolderInfoHolder folder)
     {
-        PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
-        final WakeLock wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Email - UpdateWorker");
+        TracingPowerManager pm = TracingPowerManager.getPowerManager(this);
+        final TracingWakeLock wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "FolderList checkMail");
         wakeLock.setReferenceCounted(false);
         wakeLock.acquire(K9.WAKE_LOCK_TIMEOUT);
         MessagingListener listener = new MessagingListener()
         {
+            @Override
             public void synchronizeMailboxFinished(Account account, String folder, int totalMessagesInMailbox, int numNewMessages)
             {
                 if (!account.equals(mAccount))
@@ -198,7 +204,7 @@ public class FolderList extends K9ListActivity
                 wakeLock.release();
             }
         };
-        MessagingController.getInstance(getApplication()).synchronizeMailbox(mAccount, folder.name, listener);
+        MessagingController.getInstance(getApplication()).synchronizeMailbox(mAccount, folder.name, listener, null);
         sendMail(mAccount);
     }
 
@@ -220,7 +226,7 @@ public class FolderList extends K9ListActivity
         actionHandleAccount(context, account, null);
     }
 
-    public static Intent actionHandleAccountIntent(Context context, Account account, String initialFolder)
+    public static Intent actionHandleNotification(Context context, Account account, String initialFolder)
     {
         Intent intent = new Intent(
             Intent.ACTION_VIEW,
@@ -229,7 +235,7 @@ public class FolderList extends K9ListActivity
             FolderList.class);
         intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         intent.putExtra(EXTRA_ACCOUNT, account.getUuid());
-        intent.putExtra(EXTRA_CLEAR_NOTIFICATION, true);
+        intent.putExtra(EXTRA_FROM_NOTIFICATION, true);
 
         if (initialFolder != null)
         {
@@ -238,17 +244,13 @@ public class FolderList extends K9ListActivity
         return intent;
     }
 
-    public static Intent actionHandleAccountIntent(Context context, Account account)
-    {
-        return actionHandleAccountIntent(context, account, null);
-    }
-
     @Override
     public void onCreate(Bundle savedInstanceState)
     {
         super.onCreate(savedInstanceState);
         requestWindowFeature(Window.FEATURE_INDETERMINATE_PROGRESS);
 
+        setContentView(R.layout.folder_list);
         mListView = getListView();
         mListView.setScrollBarStyle(View.SCROLLBARS_OUTSIDE_INSET);
         mListView.setLongClickable(true);
@@ -256,13 +258,13 @@ public class FolderList extends K9ListActivity
         mListView.setScrollingCacheEnabled(true);
         mListView.setOnItemClickListener(new OnItemClickListener()
         {
-            public void onItemClick(AdapterView parent, View v, int itemPosition, long id)
+            public void onItemClick(AdapterView<?> parent, View view, int position, long id)
             {
                 onOpenFolder(((FolderInfoHolder)mAdapter.getItem(id)).name);
             }
         });
         registerForContextMenu(mListView);
-        
+
         mListView.setSaveEnabled(true);
 
         mInflater = getLayoutInflater();
@@ -270,11 +272,11 @@ public class FolderList extends K9ListActivity
         onNewIntent(getIntent());
     }
 
+    @Override
     public void onNewIntent(Intent intent)
     {
         setIntent(intent); // onNewIntent doesn't autoset our "internal" intent
 
-        String savedFolderName = null;
         String initialFolder;
 
         mUnreadMessageCount = 0;
@@ -282,9 +284,14 @@ public class FolderList extends K9ListActivity
         mAccount = Preferences.getPreferences(this).getAccount(accountUuid);
 
         initialFolder = intent.getStringExtra(EXTRA_INITIAL_FOLDER);
-        if (
-            initialFolder != null
-            && !K9.FOLDER_NONE.equals(initialFolder))
+        boolean fromNotification = intent.getBooleanExtra(EXTRA_FROM_NOTIFICATION, false);
+        if (fromNotification && mAccount.goToUnreadMessageSearch())
+        {
+            MessagingController.getInstance(getApplication()).notifyAccountCancel(this, mAccount);
+            openUnreadSearch(this, mAccount);
+            finish();
+        }
+        else if (initialFolder != null && !K9.FOLDER_NONE.equals(initialFolder))
         {
             onOpenFolder(initialFolder);
             finish();
@@ -340,20 +347,50 @@ public class FolderList extends K9ListActivity
 
         MessagingController.getInstance(getApplication()).addListener(mAdapter.mListener);
         //mAccount.refresh(Preferences.getPreferences(this));
-        MessagingController.getInstance(getApplication()).getAccountUnreadCount(this, mAccount, mAdapter.mListener);
+        MessagingController.getInstance(getApplication()).getAccountStats(this, mAccount, mAdapter.mListener);
 
         onRefresh(!REFRESH_REMOTE);
 
-        NotificationManager notifMgr = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-        notifMgr.cancel(mAccount.getAccountNumber());
-        notifMgr.cancel(-1000 - mAccount.getAccountNumber());
-
+        MessagingController.getInstance(getApplication()).notifyAccountCancel(this, mAccount);
     }
 
+
+    public void onBackPressed()
+    {
+        // This will be called either automatically for you on 2.0
+        // or later, or by the code above on earlier versions of the
+        // platform.
+        if (K9.manageBack())
+        {
+            onAccounts();
+        }
+        else
+        {
+            // TODO - when we move to android 2.0, uncomment this instead.
+            // super.onBackPressed()
+            finish();
+        }
+    }
 
     @Override public boolean onKeyDown(int keyCode, KeyEvent event)
     {
         //Shortcuts that work no matter what is selected
+
+        if (
+            // TODO - when we move to android 2.0, uncomment this.
+            // android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.ECLAIR &&
+
+            keyCode == KeyEvent.KEYCODE_BACK
+            && event.getRepeatCount() == 0
+            && K9.manageBack())
+        {
+            // Take care of calling this method on earlier versions of
+            // the platform where it doesn't exist.
+            onBackPressed();
+            return true;
+        }
+
+
         switch (keyCode)
         {
             case KeyEvent.KEYCODE_Q:
@@ -375,7 +412,7 @@ public class FolderList extends K9ListActivity
                 toast.show();
                 return true;
             }
-            
+
             case KeyEvent.KEYCODE_1:
             {
                 setDisplayMode(FolderMode.FIRST_CLASS);
@@ -412,8 +449,8 @@ public class FolderList extends K9ListActivity
         }
         onRefresh(false);
     }
-    
-    
+
+
     private void onRefresh(final boolean forceRemote)
     {
 
@@ -501,10 +538,6 @@ public class FolderList extends K9ListActivity
 
                 return true;
 
-            case R.id.clear:
-                onClear(mAccount);
-
-                return true;
             case R.id.display_1st_class:
             {
                 setDisplayMode(FolderMode.FIRST_CLASS);
@@ -533,18 +566,16 @@ public class FolderList extends K9ListActivity
     private void onOpenFolder(String folder)
     {
         MessageList.actionHandleFolder(this, mAccount, folder);
+        if (K9.manageBack()) 
+        {
+            finish();
+        }
     }
 
     private void onCompact(Account account)
     {
         mHandler.workingAccount(R.string.compacting_account);
         MessagingController.getInstance(getApplication()).compact(account, null);
-    }
-
-    private void onClear(Account account)
-    {
-        mHandler.workingAccount(R.string.clearing_account);
-        MessagingController.getInstance(getApplication()).clear(account, null);
     }
 
     @Override public boolean onCreateOptionsMenu(Menu menu)
@@ -619,6 +650,7 @@ public class FolderList extends K9ListActivity
         return super.onCreateDialog(id);
     }
 
+    @Override
     public void onPrepareDialog(int id, Dialog dialog)
     {
         switch (id)
@@ -740,11 +772,13 @@ public class FolderList extends K9ListActivity
             return mFolders.size();
         }
 
+        @Override
         public boolean isEnabled(int item)
         {
             return true;
         }
 
+        @Override
         public boolean areAllItemsEnabled()
         {
             return true;
@@ -753,9 +787,13 @@ public class FolderList extends K9ListActivity
         private ActivityListener mListener = new ActivityListener()
         {
             @Override
-            public void accountStatusChanged(Account account, int unreadMessageCount)
+            public void accountStatusChanged(BaseAccount account, AccountStats stats)
             {
-                mUnreadMessageCount = unreadMessageCount;
+                if (!account.equals(mAccount))
+                {
+                    return;
+                }
+                mUnreadMessageCount = stats.unreadMessageCount;
                 mHandler.refreshTitle();
             }
 
@@ -812,12 +850,12 @@ public class FolderList extends K9ListActivity
                 List<FolderInfoHolder> topFolders = new LinkedList<FolderInfoHolder>();
 
                 Account.FolderMode aMode = account.getFolderDisplayMode();
-
+                Preferences prefs = Preferences.getPreferences(getApplication().getApplicationContext());
                 for (Folder folder : folders)
                 {
                     try
                     {
-                        folder.refresh(Preferences.getPreferences(getApplication().getApplicationContext()));
+                        folder.refresh(prefs);
 
                         Folder.FolderClass fMode = folder.getDisplayClass();
 
@@ -879,6 +917,7 @@ public class FolderList extends K9ListActivity
 
             }
 
+            @Override
             public void synchronizeMailboxStarted(Account account, String folder)
             {
                 super.synchronizeMailboxStarted(account, folder);
@@ -899,12 +938,6 @@ public class FolderList extends K9ListActivity
             {
                 super.synchronizeMailboxProgress(account, folder, completed, total);
                 mHandler.refreshTitle();
-                if (true) return;
-                if (!account.equals(mAccount))
-                {
-                    return;
-                }
-                mHandler.dataChanged();
             }
 
             @Override
@@ -1079,6 +1112,7 @@ public class FolderList extends K9ListActivity
 
             }
 
+            @Override
             public void accountSizeChanged(Account account, long oldSize, long newSize)
             {
                 if (!account.equals(mAccount))
@@ -1089,21 +1123,29 @@ public class FolderList extends K9ListActivity
                 mHandler.accountSizeChanged(oldSize, newSize);
 
             }
+
+            @Override
             public void pendingCommandsProcessing(Account account)
             {
                 super.pendingCommandsProcessing(account);
                 mHandler.refreshTitle();
             }
+
+            @Override
             public void pendingCommandsFinished(Account account)
             {
                 super.pendingCommandsFinished(account);
                 mHandler.refreshTitle();
             }
+
+            @Override
             public void pendingCommandStarted(Account account, String commandTitle)
             {
                 super.pendingCommandStarted(account, commandTitle);
                 mHandler.refreshTitle();
             }
+
+            @Override
             public void pendingCommandCompleted(Account account, String commandTitle)
             {
                 super.pendingCommandCompleted(account, commandTitle);
@@ -1171,7 +1213,9 @@ public class FolderList extends K9ListActivity
                 holder = new FolderViewHolder();
                 holder.folderName = (TextView) view.findViewById(R.id.folder_name);
                 holder.newMessageCount = (TextView) view.findViewById(R.id.folder_unread_message_count);
+                holder.flaggedMessageCount = (TextView) view.findViewById(R.id.folder_flagged_message_count);
                 holder.folderStatus = (TextView) view.findViewById(R.id.folder_status);
+                holder.activeIcons = (RelativeLayout) view.findViewById(R.id.active_icons);
                 holder.chip = view.findViewById(R.id.chip);
                 holder.rawFolderName = folder.name;
 
@@ -1188,8 +1232,7 @@ public class FolderList extends K9ListActivity
 
             if (folder.loading)
             {
-                String progress = false && mAdapter.mListener.getFolderTotal() > 0 ? getString(R.string.folder_progress, mAdapter.mListener.getFolderCompleted(), mAdapter.mListener.getFolderTotal()) : "";
-                statusText = getString(R.string.status_loading, progress);
+                statusText = getString(R.string.status_loading);
             }
             else if (folder.status != null)
             {
@@ -1223,6 +1266,7 @@ public class FolderList extends K9ListActivity
             {
                 holder.newMessageCount.setText(Integer
                                                .toString(folder.unreadMessageCount));
+                holder.newMessageCount.setOnClickListener(new FolderClickListener(mAccount, folder.name, folder.displayName, SearchModifier.UNREAD));
                 holder.newMessageCount.setVisibility(View.VISIBLE);
             }
             else
@@ -1230,13 +1274,38 @@ public class FolderList extends K9ListActivity
                 holder.newMessageCount.setVisibility(View.GONE);
             }
 
-            holder.chip.setBackgroundResource(K9.COLOR_CHIP_RES_IDS[mAccount.getAccountNumber() % K9.COLOR_CHIP_RES_IDS.length]);
+            if (K9.messageListStars() && folder.flaggedMessageCount > 0)
+            {
+                holder.flaggedMessageCount.setText(Integer
+                                                   .toString(folder.flaggedMessageCount));
+                holder.flaggedMessageCount.setOnClickListener(new FolderClickListener(mAccount, folder.name, folder.displayName, SearchModifier.FLAGGED));
+                holder.flaggedMessageCount.setVisibility(View.VISIBLE);
+            }
+            else
+            {
+                holder.flaggedMessageCount.setVisibility(View.GONE);
+            }
+            holder.activeIcons.setOnClickListener(new OnClickListener()
+            {
+                public void onClick(View v)
+                {
+                    Toast toast = Toast.makeText(getApplication(), getString(R.string.tap_hint), Toast.LENGTH_SHORT);
+                    toast.show();
+                }
+            }
+                                                 );
 
+            holder.chip.setBackgroundColor(mAccount.getChipColor());
             holder.chip.getBackground().setAlpha(folder.unreadMessageCount == 0 ? 127 : 255);
+
+            holder.folderName.setTextSize(TypedValue.COMPLEX_UNIT_DIP, mFontSizes.getFolderName());
+            holder.folderStatus.setTextSize(TypedValue.COMPLEX_UNIT_DIP, mFontSizes.getFolderStatus());
+
 
             return view;
         }
 
+        @Override
         public boolean hasStableIds()
         {
             return false;
@@ -1259,6 +1328,8 @@ public class FolderList extends K9ListActivity
 
         public int unreadMessageCount;
 
+        public int flaggedMessageCount;
+
         public boolean loading;
 
         public String status;
@@ -1273,16 +1344,16 @@ public class FolderList extends K9ListActivity
         public boolean outbox;
 
 
+        @Override
         public boolean equals(Object o)
         {
-            if (this.name.equals(((FolderInfoHolder)o).name))
-            {
-                return true;
-            }
-            else
-            {
-                return false;
-            }
+            return this.name.equals(((FolderInfoHolder)o).name);
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return name.hashCode();
         }
 
         public int compareTo(FolderInfoHolder o)
@@ -1317,7 +1388,7 @@ public class FolderList extends K9ListActivity
             try
             {
                 folder.open(Folder.OpenMode.READ_WRITE);
-                unreadCount = folder.getUnreadMessageCount();
+                //  unreadCount = folder.getUnreadMessageCount();
             }
             catch (MessagingException me)
             {
@@ -1364,6 +1435,15 @@ public class FolderList extends K9ListActivity
 
             this.unreadMessageCount = unreadCount;
 
+            try
+            {
+                this.flaggedMessageCount = folder.getFlaggedMessageCount();
+            }
+            catch (Exception e)
+            {
+                Log.e(K9.LOG_TAG, "Unable to get flaggedMessageCount", e);
+            }
+
             folder.close();
 
         }
@@ -1376,9 +1456,125 @@ public class FolderList extends K9ListActivity
         public TextView folderStatus;
 
         public TextView newMessageCount;
+        public TextView flaggedMessageCount;
 
+        public RelativeLayout activeIcons;
         public String rawFolderName;
         public View chip;
+    }
+
+    private class FolderClickListener implements OnClickListener
+    {
+
+        final BaseAccount account;
+        final String folderName;
+        final String displayName;
+        final SearchModifier searchModifier;
+        FolderClickListener(BaseAccount nAccount, String folderName, String displayName, SearchModifier nSearchModifier)
+        {
+            account = nAccount;
+            this.folderName = folderName;
+            searchModifier = nSearchModifier;
+            this.displayName = displayName;
+        }
+        @Override
+        public void onClick(View v)
+        {
+            String description = getString(R.string.search_title,
+                                           getString(R.string.message_list_title, account.getDescription(), displayName),
+                                           getString(searchModifier.resId));
+
+            SearchSpecification searchSpec = new SearchSpecification()
+            {
+                @Override
+                public String[] getAccountUuids()
+                {
+                    return new String[] { account.getUuid() };
+                }
+
+                @Override
+                public Flag[] getForbiddenFlags()
+                {
+                    return searchModifier.forbiddenFlags;
+                }
+
+                @Override
+                public String getQuery()
+                {
+                    return "";
+                }
+
+                @Override
+                public Flag[] getRequiredFlags()
+                {
+                    return searchModifier.requiredFlags;
+                }
+
+                @Override
+                public boolean isIntegrate()
+                {
+                    return false;
+                }
+
+                @Override
+                public String[] getFolderNames()
+                {
+                    return new String[] { folderName };
+                }
+
+            };
+            MessageList.actionHandle(FolderList.this, description, searchSpec);
+
+        }
+
+    }
+
+    private static Flag[] UNREAD_FLAG_ARRAY = { Flag.SEEN };
+
+    private void openUnreadSearch(Context context, final Account account)
+    {
+        String description = getString(R.string.search_title, mAccount.getDescription(), getString(R.string.unread_modifier));
+
+        SearchSpecification searchSpec = new SearchSpecification()
+        {
+            @Override
+            public String[] getAccountUuids()
+            {
+                return new String[] { account.getUuid() };
+            }
+
+            @Override
+            public Flag[] getForbiddenFlags()
+            {
+                return UNREAD_FLAG_ARRAY;
+            }
+
+            @Override
+            public String getQuery()
+            {
+                return "";
+            }
+
+            @Override
+            public Flag[] getRequiredFlags()
+            {
+                return null;
+            }
+
+            @Override
+            public boolean isIntegrate()
+            {
+                return false;
+            }
+
+            @Override
+            public String[] getFolderNames()
+            {
+                return null;
+            }
+
+        };
+        MessageList.actionHandle(context, description, searchSpec);
     }
 
 }

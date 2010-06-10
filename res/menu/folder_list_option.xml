@@ -7,9 +7,8 @@
 		android:icon="@drawable/ic_menu_compose"
 	/>
 	<item
-        android:id="@+id/display_1st_class"
         android:title="@string/folder_list_display_mode_label"
-        android:icon="@drawable/ic_menu_refresh"
+        android:icon="@drawable/ic_show_folders"
     >
         <menu>
             <item
@@ -74,11 +73,6 @@
 			android:id="@+id/compact"
 			android:title="@string/compact_action"
 			android:icon="@drawable/ic_menu_compact"
-		/>
-		<item
-			android:id="@+id/clear"
-			android:title="@string/clear_action"
-			android:icon="@drawable/ic_menu_clear"
 		/>
 		</menu>
     </item>

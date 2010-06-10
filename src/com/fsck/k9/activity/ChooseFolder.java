@@ -12,6 +12,8 @@ import android.widget.ArrayAdapter;
 import android.widget.ListView;
 import android.widget.TextView;
 import com.fsck.k9.*;
+import com.fsck.k9.controller.MessagingController;
+import com.fsck.k9.controller.MessagingListener;
 import com.fsck.k9.mail.Folder;
 import com.fsck.k9.mail.MessagingException;
 import java.util.ArrayList;
@@ -22,7 +24,7 @@ public class ChooseFolder extends K9ListActivity
 {
     String mFolder;
     Account mAccount;
-    String mUID;
+    MessageReference mMessageReference;
     ArrayAdapter<String> adapter;
     private ChooseFolderHandler mHandler = new ChooseFolderHandler();
     String heldInbox = null;
@@ -33,7 +35,7 @@ public class ChooseFolder extends K9ListActivity
     public static final String EXTRA_ACCOUNT = "com.fsck.k9.ChooseFolder_account";
     public static final String EXTRA_CUR_FOLDER = "com.fsck.k9.ChooseFolder_curfolder";
     public static final String EXTRA_NEW_FOLDER = "com.fsck.k9.ChooseFolder_newfolder";
-    public static final String EXTRA_MESSAGE_UID = "com.fsck.k9.ChooseFolder_messageuid";
+    public static final String EXTRA_MESSAGE = "com.fsck.k9.ChooseFolder_message";
     public static final String EXTRA_SHOW_CURRENT = "com.fsck.k9.ChooseFolder_showcurrent";
     public static final String EXTRA_SHOW_FOLDER_NONE = "com.fsck.k9.ChooseFolder_showOptionNone";
     public static final String EXTRA_SHOW_DISPLAYABLE_ONLY = "com.fsck.k9.ChooseFolder_showDisplayableOnly";
@@ -51,7 +53,7 @@ public class ChooseFolder extends K9ListActivity
         Intent intent = getIntent();
         String accountUuid = intent.getStringExtra(EXTRA_ACCOUNT);
         mAccount = Preferences.getPreferences(this).getAccount(accountUuid);
-        mUID = intent.getStringExtra(EXTRA_MESSAGE_UID);
+        mMessageReference = (MessageReference)intent.getSerializableExtra(EXTRA_MESSAGE);
         mFolder = intent.getStringExtra(EXTRA_CUR_FOLDER);
         if (intent.getStringExtra(EXTRA_SHOW_CURRENT) != null)
         {
@@ -79,7 +81,7 @@ public class ChooseFolder extends K9ListActivity
 
         this.getListView().setOnItemClickListener(new AdapterView.OnItemClickListener()
         {
-            public void onItemClick(AdapterView adapterview, View view, int i, long l)
+            public void onItemClick(AdapterView<?> parent, View view, int position, long id)
             {
                 Intent intent = new Intent();
                 intent.putExtra(EXTRA_CUR_FOLDER, mFolder);
@@ -89,7 +91,7 @@ public class ChooseFolder extends K9ListActivity
                     destFolderName = heldInbox;
                 }
                 intent.putExtra(EXTRA_NEW_FOLDER, destFolderName);
-                intent.putExtra(EXTRA_MESSAGE_UID, mUID);
+                intent.putExtra(EXTRA_MESSAGE, mMessageReference);
                 setResult(RESULT_OK, intent);
                 finish();
             }
@@ -105,6 +107,7 @@ public class ChooseFolder extends K9ListActivity
         private static final int MSG_DATA_CHANGED = 3;
         private static final int MSG_SET_SELECTED_FOLDER = 4;
 
+        @Override
         public void handleMessage(android.os.Message msg)
         {
             switch (msg.what)
@@ -147,6 +150,7 @@ public class ChooseFolder extends K9ListActivity
 
     private MessagingListener mListener = new MessagingListener()
     {
+        @Override
         public void listFoldersStarted(Account account)
         {
             if (!account.equals(mAccount))

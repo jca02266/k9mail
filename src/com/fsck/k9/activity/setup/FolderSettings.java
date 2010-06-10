@@ -10,6 +10,7 @@ import android.preference.Preference;
 import android.util.Log;
 import android.view.KeyEvent;
 import com.fsck.k9.*;
+import com.fsck.k9.activity.K9PreferenceActivity;
 import com.fsck.k9.mail.Folder.FolderClass;
 import com.fsck.k9.mail.MessagingException;
 import com.fsck.k9.mail.Store;
@@ -28,10 +29,12 @@ public class FolderSettings extends K9PreferenceActivity
     private static final String PREFERENCE_SYNC_CLASS = "folder_settings_folder_sync_mode";
     private static final String PREFERENCE_PUSH_CLASS = "folder_settings_folder_push_mode";
     private static final String PREFERENCE_IN_TOP_GROUP = "folder_settings_in_top_group";
+    private static final String PREFERENCE_INTEGRATE = "folder_settings_include_in_integrated_inbox";
 
     private LocalFolder mFolder;
 
     private CheckBoxPreference mInTopGroup;
+    private CheckBoxPreference mIntegrate;
     private ListPreference mDisplayClass;
     private ListPreference mSyncClass;
     private ListPreference mPushClass;
@@ -82,10 +85,12 @@ public class FolderSettings extends K9PreferenceActivity
         Preference category = findPreference(PREFERENCE_TOP_CATERGORY);
         category.setTitle(folderName);
 
-        
+
         mInTopGroup = (CheckBoxPreference)findPreference(PREFERENCE_IN_TOP_GROUP);
         mInTopGroup.setChecked(mFolder.isInTopGroup());
-        
+        mIntegrate = (CheckBoxPreference)findPreference(PREFERENCE_INTEGRATE);
+        mIntegrate.setChecked(mFolder.isIntegrate());
+
         mDisplayClass = (ListPreference) findPreference(PREFERENCE_DISPLAY_CLASS);
         mDisplayClass.setValue(mFolder.getDisplayClass().name());
         mDisplayClass.setSummary(mDisplayClass.getEntry());
@@ -150,20 +155,21 @@ public class FolderSettings extends K9PreferenceActivity
     private void saveSettings()
     {
         mFolder.setInTopGroup(mInTopGroup.isChecked());
+        mFolder.setIntegrate(mIntegrate.isChecked());
         // We call getPushClass() because display class changes can affect push class when push class is set to inherit
         FolderClass oldPushClass = mFolder.getPushClass();
         FolderClass oldDisplayClass = mFolder.getDisplayClass();
         mFolder.setDisplayClass(FolderClass.valueOf(mDisplayClass.getValue()));
         mFolder.setSyncClass(FolderClass.valueOf(mSyncClass.getValue()));
         mFolder.setPushClass(FolderClass.valueOf(mPushClass.getValue()));
-        
+
         FolderClass newPushClass = mFolder.getPushClass();
         FolderClass newDisplayClass = mFolder.getDisplayClass();
-        
+
         try
         {
             mFolder.save(Preferences.getPreferences(this));
-            if (oldPushClass != newPushClass 
+            if (oldPushClass != newPushClass
                     || (newPushClass != FolderClass.NO_CLASS && oldDisplayClass != newDisplayClass))
             {
                 MailService.actionRestartPushers(getApplication(), null);

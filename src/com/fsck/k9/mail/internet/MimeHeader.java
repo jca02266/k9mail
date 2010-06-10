@@ -1,7 +1,7 @@
 
 package com.fsck.k9.mail.internet;
 
-import com.fsck.k9.Utility;
+import com.fsck.k9.helper.Utility;
 import com.fsck.k9.mail.MessagingException;
 import org.apache.james.mime4j.codec.EncoderUtil;
 
@@ -9,8 +9,7 @@ import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
 public class MimeHeader
 {
@@ -26,6 +25,7 @@ public class MimeHeader
     public static final String HEADER_CONTENT_TYPE = "Content-Type";
     public static final String HEADER_CONTENT_TRANSFER_ENCODING = "Content-Transfer-Encoding";
     public static final String HEADER_CONTENT_DISPOSITION = "Content-Disposition";
+    public static final String HEADER_CONTENT_ID = "Content-ID";
 
     /**
      * Fields that should be omitted when writing the header using writeTo()
@@ -69,9 +69,9 @@ public class MimeHeader
         addHeader(name, value);
     }
 
-    public List<String> getHeaderNames()
+    public Set<String> getHeaderNames()
     {
-        ArrayList<String> names = new ArrayList<String>();
+        Set<String> names = new HashSet<String>();
         for (Field field : mFields)
         {
             names.add(field.name);

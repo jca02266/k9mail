@@ -12,7 +12,6 @@ import android.widget.ListView;
 import android.widget.Toast;
 import com.fsck.k9.Account;
 import com.fsck.k9.Identity;
-import com.fsck.k9.K9ListActivity;
 import com.fsck.k9.Preferences;
 import com.fsck.k9.R;
 import java.util.List;
@@ -22,7 +21,6 @@ public class ChooseIdentity extends K9ListActivity
     Account mAccount;
     String mUID;
     ArrayAdapter<String> adapter;
-    private ChooseIdentityHandler mHandler = new ChooseIdentityHandler();
 
     public static final String EXTRA_ACCOUNT = "com.fsck.k9.ChooseIdentity_account";
     public static final String EXTRA_IDENTITY = "com.fsck.k9.ChooseIdentity_identity";
@@ -65,7 +63,6 @@ public class ChooseIdentity extends K9ListActivity
         identities = mAccount.getIdentities();
         for (Identity identity : identities)
         {
-            String email = identity.getEmail();
             String description = identity.getDescription();
             if (description == null || description.trim().length() == 0)
             {
@@ -80,15 +77,15 @@ public class ChooseIdentity extends K9ListActivity
     {
         this.getListView().setOnItemClickListener(new AdapterView.OnItemClickListener()
         {
-            public void onItemClick(AdapterView adapterview, View view, int i, long l)
+            public void onItemClick(AdapterView<?> parent, View view, int position, long id)
             {
-                Identity identity = mAccount.getIdentity(i);
+                Identity identity = mAccount.getIdentity(position);
                 String email = identity.getEmail();
                 if (email != null && email.trim().equals("") == false)
                 {
                     Intent intent = new Intent();
 
-                    intent.putExtra(EXTRA_IDENTITY, mAccount.getIdentity(i));
+                    intent.putExtra(EXTRA_IDENTITY, mAccount.getIdentity(position));
                     setResult(RESULT_OK, intent);
                     finish();
                 }
@@ -108,6 +105,7 @@ public class ChooseIdentity extends K9ListActivity
         private static final int MSG_PROGRESS = 2;
         private static final int MSG_DATA_CHANGED = 3;
 
+        @Override
         public void handleMessage(android.os.Message msg)
         {
             switch (msg.what)

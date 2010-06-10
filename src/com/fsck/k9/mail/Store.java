@@ -10,6 +10,7 @@ import com.fsck.k9.mail.store.Pop3Store;
 import com.fsck.k9.mail.store.WebDavStore;
 
 import java.util.HashMap;
+import java.util.List;
 
 /**
  * Store is the access point for an email message store. It's location can be
@@ -28,7 +29,7 @@ public abstract class Store
     //Matching MessagingController.MAX_SMALL_MESSAGE_SIZE
     public static final int FETCH_BODY_SANE_SUGGESTED_SIZE = (50 * 1024);
 
-    protected static final int SOCKET_CONNECT_TIMEOUT = 10000;
+    protected static final int SOCKET_CONNECT_TIMEOUT = 30000;
     protected static final int SOCKET_READ_TIMEOUT = 60000;
 
     private static HashMap<String, Store> mStores = new HashMap<String, Store>();
@@ -115,7 +116,7 @@ public abstract class Store
 
     public abstract Folder getFolder(String name) throws MessagingException;
 
-    public abstract Folder[] getPersonalNamespaces() throws MessagingException;
+    public abstract List<? extends Folder> getPersonalNamespaces(boolean forceListAll) throws MessagingException;
 
     public abstract void checkSettings() throws MessagingException;
 

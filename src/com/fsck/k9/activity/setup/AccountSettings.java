@@ -12,6 +12,8 @@ import com.fsck.k9.*;
 import com.fsck.k9.Account.FolderMode;
 import com.fsck.k9.activity.ChooseFolder;
 import com.fsck.k9.activity.ChooseIdentity;
+import com.fsck.k9.activity.ColorPickerDialog;
+import com.fsck.k9.activity.K9PreferenceActivity;
 import com.fsck.k9.activity.ManageIdentities;
 import com.fsck.k9.mail.Store;
 import com.fsck.k9.service.MailService;
@@ -42,11 +44,16 @@ public class AccountSettings extends K9PreferenceActivity
     private static final String PREFERENCE_DISPLAY_MODE = "folder_display_mode";
     private static final String PREFERENCE_SYNC_MODE = "folder_sync_mode";
     private static final String PREFERENCE_PUSH_MODE = "folder_push_mode";
-    private static final String PREFERENCE_PUSH_LIMIT = "folder_push_limit";
     private static final String PREFERENCE_TARGET_MODE = "folder_target_mode";
     private static final String PREFERENCE_DELETE_POLICY = "delete_policy";
     private static final String PREFERENCE_EXPUNGE_POLICY = "expunge_policy";
     private static final String PREFERENCE_AUTO_EXPAND_FOLDER = "account_setup_auto_expand_folder";
+    private static final String PREFERENCE_SEARCHABLE_FOLDERS = "searchable_folders";
+    private static final String PREFERENCE_CHIP_COLOR = "chip_color";
+    private static final String PREFERENCE_LED_COLOR = "led_color";
+    private static final String PREFERENCE_NOTIFICATION_OPENS_UNREAD = "notification_opens_unread";
+    private static final String PREFERENCE_MESSAGE_AGE = "account_message_age";
+
 
 
     private Account mAccount;
@@ -54,6 +61,7 @@ public class AccountSettings extends K9PreferenceActivity
     private EditTextPreference mAccountDescription;
     private ListPreference mCheckFrequency;
     private ListPreference mDisplayCount;
+    private ListPreference mMessageAge;
     private CheckBoxPreference mAccountDefault;
     private CheckBoxPreference mAccountNotify;
     private CheckBoxPreference mAccountNotifySelf;
@@ -64,12 +72,15 @@ public class AccountSettings extends K9PreferenceActivity
     private ListPreference mDisplayMode;
     private ListPreference mSyncMode;
     private ListPreference mPushMode;
-    private ListPreference mPushLimit;
     private ListPreference mTargetMode;
     private ListPreference mDeletePolicy;
     private ListPreference mExpungePolicy;
+    private ListPreference mSearchableFolders;
     private Preference mAutoExpandFolder;
+    private Preference mChipColor;
+    private Preference mLedColor;
     private boolean mIncomingChanged = false;
+    private CheckBoxPreference mNotificationOpensUnread;
 
 
     public static void actionSettings(Context context, Account account)
@@ -182,22 +193,6 @@ public class AccountSettings extends K9PreferenceActivity
             }
         });
 
-        mPushLimit = (ListPreference) findPreference(PREFERENCE_PUSH_LIMIT);
-        mPushLimit.setEnabled(isPushCapable);
-        mPushLimit.setValue(String.valueOf(mAccount.getMaxPushFolders()));
-        mPushLimit.setSummary(mPushLimit.getEntry());
-        mPushLimit.setOnPreferenceChangeListener(new Preference.OnPreferenceChangeListener()
-        {
-            public boolean onPreferenceChange(Preference preference, Object newValue)
-            {
-                final String summary = newValue.toString();
-                int index = mPushLimit.findIndexOfValue(summary);
-                mPushLimit.setSummary(mPushLimit.getEntries()[index]);
-                mPushLimit.setValue(summary);
-                return false;
-            }
-        });
-
         mTargetMode = (ListPreference) findPreference(PREFERENCE_TARGET_MODE);
         mTargetMode.setValue(mAccount.getFolderTargetMode().name());
         mTargetMode.setSummary(mTargetMode.getEntry());
@@ -245,6 +240,21 @@ public class AccountSettings extends K9PreferenceActivity
             }
         });
 
+        mSearchableFolders = (ListPreference) findPreference(PREFERENCE_SEARCHABLE_FOLDERS);
+        mSearchableFolders.setValue(mAccount.getSearchableFolders().name());
+        mSearchableFolders.setSummary(mSearchableFolders.getEntry());
+        mSearchableFolders.setOnPreferenceChangeListener(new Preference.OnPreferenceChangeListener()
+        {
+            public boolean onPreferenceChange(Preference preference, Object newValue)
+            {
+                final String summary = newValue.toString();
+                int index = mSearchableFolders.findIndexOfValue(summary);
+                mSearchableFolders.setSummary(mSearchableFolders.getEntries()[index]);
+                mSearchableFolders.setValue(summary);
+                return false;
+            }
+        });
+
         mDisplayCount = (ListPreference) findPreference(PREFERENCE_DISPLAY_COUNT);
         mDisplayCount.setValue(String.valueOf(mAccount.getDisplayCount()));
         mDisplayCount.setSummary(mDisplayCount.getEntry());
@@ -256,6 +266,21 @@ public class AccountSettings extends K9PreferenceActivity
                 int index = mDisplayCount.findIndexOfValue(summary);
                 mDisplayCount.setSummary(mDisplayCount.getEntries()[index]);
                 mDisplayCount.setValue(summary);
+                return false;
+            }
+        });
+        
+        mMessageAge = (ListPreference) findPreference(PREFERENCE_MESSAGE_AGE);
+        mMessageAge.setValue(String.valueOf(mAccount.getMaximumPolledMessageAge()));
+        mMessageAge.setSummary(mMessageAge.getEntry());
+        mMessageAge.setOnPreferenceChangeListener(new Preference.OnPreferenceChangeListener()
+        {
+            public boolean onPreferenceChange(Preference preference, Object newValue)
+            {
+                final String summary = newValue.toString();
+                int index = mMessageAge.findIndexOfValue(summary);
+                mMessageAge.setSummary(mMessageAge.getEntries()[index]);
+                mMessageAge.setValue(summary);
                 return false;
             }
         });
@@ -300,6 +325,10 @@ public class AccountSettings extends K9PreferenceActivity
         mAccountVibrate = (CheckBoxPreference) findPreference(PREFERENCE_VIBRATE);
         mAccountVibrate.setChecked(mAccount.isVibrate());
 
+        mNotificationOpensUnread = (CheckBoxPreference)findPreference(PREFERENCE_NOTIFICATION_OPENS_UNREAD);
+        mNotificationOpensUnread.setChecked(mAccount.goToUnreadMessageSearch());
+
+
         mAutoExpandFolder = (Preference)findPreference(PREFERENCE_AUTO_EXPAND_FOLDER);
 
         mAutoExpandFolder.setSummary(translateFolder(mAccount.getAutoExpandFolderName()));
@@ -312,7 +341,37 @@ public class AccountSettings extends K9PreferenceActivity
                 onChooseAutoExpandFolder();
                 return false;
             }
-        });
+        }
+        );
+
+
+        mChipColor = (Preference)findPreference(PREFERENCE_CHIP_COLOR);
+
+        mChipColor.setOnPreferenceClickListener(
+            new Preference.OnPreferenceClickListener()
+        {
+            public boolean onPreferenceClick(Preference preference)
+            {
+                onChooseChipColor();
+                return false;
+            }
+        }
+        );
+
+        mLedColor = (Preference)findPreference(PREFERENCE_LED_COLOR);
+
+        mLedColor.setOnPreferenceClickListener(
+            new Preference.OnPreferenceClickListener()
+        {
+            public boolean onPreferenceClick(Preference preference)
+            {
+                onChooseLedColor();
+                return false;
+            }
+        }
+        );
+
+
 
         findPreference(PREFERENCE_COMPOSITION).setOnPreferenceClickListener(
             new Preference.OnPreferenceClickListener()
@@ -375,22 +434,26 @@ public class AccountSettings extends K9PreferenceActivity
         mAccount.setNotifySelfNewMail(mAccountNotifySelf.isChecked());
         mAccount.setShowOngoing(mAccountNotifySync.isChecked());
         mAccount.setDisplayCount(Integer.parseInt(mDisplayCount.getValue()));
+        mAccount.setMaximumPolledMessageAge(Integer.parseInt(mMessageAge.getValue()));
         mAccount.setVibrate(mAccountVibrate.isChecked());
+        mAccount.setGoToUnreadMessageSearch(mNotificationOpensUnread.isChecked());
         mAccount.setFolderTargetMode(Account.FolderMode.valueOf(mTargetMode.getValue()));
         mAccount.setDeletePolicy(Integer.parseInt(mDeletePolicy.getValue()));
         mAccount.setExpungePolicy(mExpungePolicy.getValue());
-        
+        mAccount.setSearchableFolders(Account.Searchable.valueOf(mSearchableFolders.getValue()));
+
         boolean needsRefresh = mAccount.setAutomaticCheckIntervalMinutes(Integer.parseInt(mCheckFrequency.getValue()));
         needsRefresh |= mAccount.setFolderSyncMode(Account.FolderMode.valueOf(mSyncMode.getValue()));
-        
+
         boolean needsPushRestart = mAccount.setFolderPushMode(Account.FolderMode.valueOf(mPushMode.getValue()));
+        boolean displayModeChanged = mAccount.setFolderDisplayMode(Account.FolderMode.valueOf(mDisplayMode.getValue()));
+
         if (mAccount.getFolderPushMode() != FolderMode.NONE)
         {
-            needsPushRestart |= mAccount.setFolderDisplayMode(Account.FolderMode.valueOf(mDisplayMode.getValue()));
-            needsPushRestart |= mAccount.setMaxPushFolders(Integer.parseInt(mPushLimit.getValue()));
-            needsPushRestart |= mIncomingChanged;  
+            needsPushRestart |= displayModeChanged;
+            needsPushRestart |= mIncomingChanged;
         }
-        
+
         SharedPreferences prefs = mAccountRingtone.getPreferenceManager().getSharedPreferences();
         String newRingtone = prefs.getString(PREFERENCE_RINGTONE, null);
         if (newRingtone != null)
@@ -469,6 +532,30 @@ public class AccountSettings extends K9PreferenceActivity
     private void onOutgoingSettings()
     {
         AccountSetupOutgoing.actionEditOutgoingSettings(this, mAccount);
+    }
+
+    public void onChooseChipColor()
+    {
+        new ColorPickerDialog(this, new ColorPickerDialog.OnColorChangedListener()
+        {
+            public void colorChanged(int color)
+            {
+                mAccount.setChipColor(color);
+            }
+        },
+        mAccount.getChipColor()).show();
+    }
+
+    public void onChooseLedColor()
+    {
+        new ColorPickerDialog(this, new ColorPickerDialog.OnColorChangedListener()
+        {
+            public void colorChanged(int color)
+            {
+                mAccount.setLedColor(color);
+            }
+        },
+        mAccount.getLedColor()).show();
     }
 
     public void onChooseAutoExpandFolder()

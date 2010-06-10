@@ -13,7 +13,6 @@
         android:layout_alignParentBottom="true"
         android:layout_centerHorizontal="true"
         android:visibility="gone"
-        android:padding="2sp"
         android:background="#CCCCCC"
         >
         <Button
@@ -21,26 +20,27 @@
             android:layout_width="0dip"
             android:layout_height="wrap_content"
             android:layout_weight="1"
+            android:gravity="center"
             android:text="@string/message_list_mark_read_action"
         />
         <Button
             android:id="@+id/batch_delete_button"
             android:layout_width="0dip"
-            android:layout_height="wrap_content"
+            android:layout_height="fill_parent"
             android:layout_weight="1"
             android:text="@string/message_list_delete_action"
         />
         <Button
             android:id="@+id/batch_flag_button"
             android:layout_width="0dip"
-            android:layout_height="wrap_content"
+            android:layout_height="fill_parent"
             android:layout_weight="1"
             android:text="@string/message_list_flag_action"
         />
         <Button
             android:id="@+id/batch_done_button"
             android:layout_width="0dip"
-            android:layout_height="wrap_content"
+            android:layout_height="fill_parent"
             android:layout_weight="1"
             android:text="@string/done_action"
         />
@@ -53,5 +53,6 @@
         android:layout_alignWithParentIfMissing="true"
         android:layout_alignParentTop="true"
         android:layout_centerHorizontal="true"
+        android:cacheColorHint="?android:attr/colorBackground"
     />
 </RelativeLayout>

@@ -6,12 +6,17 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
+import android.content.pm.PackageManager.NameNotFoundException;
 import android.net.Uri;
+import android.os.Environment;
 import android.util.Log;
 import android.webkit.WebSettings;
 
 import com.fsck.k9.activity.MessageCompose;
+import com.fsck.k9.controller.MessagingController;
+import com.fsck.k9.controller.MessagingListener;
 import com.fsck.k9.mail.Address;
 import com.fsck.k9.mail.Message;
 import com.fsck.k9.mail.MessagingException;
@@ -30,10 +35,12 @@ public class K9 extends Application
 
     public enum BACKGROUND_OPS
     {
-        WHEN_CHECKED, ALWAYS, NEVER
+        WHEN_CHECKED, ALWAYS, NEVER, WHEN_CHECKED_AUTO_SYNC
     }
 
     private static int theme = android.R.style.Theme_Light;
+
+    private static final FontSizes fontSizes = new FontSizes();
 
     private static BACKGROUND_OPS backgroundOps = BACKGROUND_OPS.WHEN_CHECKED;
     /**
@@ -42,7 +49,7 @@ public class K9 extends Application
      * on the phone, without adb.  Set to null to disable
      */
     public static final String logFile = null;
-    //public static final String logFile = "/sdcard/k9mail/debug.log";
+    //public static final String logFile = Environment.getExternalStorageDirectory() + "/k9mail/debug.log";
 
     /**
      * If this is enabled there will be additional logging information sent to
@@ -71,13 +78,22 @@ public class K9 extends Application
     private static boolean mMessageListStars = true;
     private static boolean mMessageListCheckboxes = false;
     private static boolean mMessageListTouchable = false;
+
+    private static boolean mMessageViewFixedWidthFont = false;
+
     private static boolean mGesturesEnabled = true;
+    private static boolean mManageBack = false;
+    private static boolean mMeasureAccounts = true;
+    private static boolean mCountSearchMessages = true;
+
+    private static boolean useGalleryBugWorkaround = false;
+    private static boolean galleryBuggy;
 
     /**
      * We use WebSettings.getBlockNetworkLoads() to prevent the WebView that displays email
      * bodies from loading external resources over the network. Unfortunately this method
      * isn't exposed via the official Android API. That's why we use reflection to be able
-     * to call the method. 
+     * to call the method.
      */
     private static final Method mGetBlockNetworkLoads = getMethod(WebSettings.class, "setBlockNetworkLoads");
 
@@ -175,14 +191,8 @@ public class K9 extends Application
 
     public static final int BOOT_RECEIVER_WAKE_LOCK_TIMEOUT = 60000;
 
-
     /**
-     * LED color used for the new email notitication
-     */
-    public static final int NOTIFICATION_LED_COLOR = 0xffff00ff;
-
-    /**
-     * Time the LED is on when blicking on new email notification
+     * Time the LED is on when blinking on new email notification
      */
     public static final int NOTIFICATION_LED_ON_TIME = 500;
 
@@ -192,42 +202,14 @@ public class K9 extends Application
     public static final int NOTIFICATION_LED_OFF_TIME = 2000;
 
     public static final boolean NOTIFICATION_LED_WHILE_SYNCING = false;
-    public static final int NOTIFICATION_LED_DIM_COLOR = 0x77770077;
     public static final int NOTIFICATION_LED_FAST_ON_TIME = 100;
     public static final int NOTIFICATION_LED_FAST_OFF_TIME = 100;
 
     public static final int NOTIFICATION_LED_SENDING_FAILURE_COLOR = 0xffff0000;
 
     // Must not conflict with an account number
-    public static final int FETCHING_EMAIL_NOTIFICATION_ID      = -4;
-    public static final int FETCHING_EMAIL_NOTIFICATION_MULTI_ACCOUNT_ID      = -1;
-    public static final int FETCHING_EMAIL_NOTIFICATION_NO_ACCOUNT = -2;
+    public static final int FETCHING_EMAIL_NOTIFICATION      = -5000;
     public static final int CONNECTIVITY_ID = -3;
-
-    public static final int[] COLOR_CHIP_RES_IDS = new int[]
-    {
-        R.drawable.appointment_indicator_leftside_1,
-        R.drawable.appointment_indicator_leftside_2,
-        R.drawable.appointment_indicator_leftside_3,
-        R.drawable.appointment_indicator_leftside_4,
-        R.drawable.appointment_indicator_leftside_5,
-        R.drawable.appointment_indicator_leftside_6,
-        R.drawable.appointment_indicator_leftside_7,
-        R.drawable.appointment_indicator_leftside_8,
-        R.drawable.appointment_indicator_leftside_9,
-        R.drawable.appointment_indicator_leftside_10,
-        R.drawable.appointment_indicator_leftside_11,
-        R.drawable.appointment_indicator_leftside_12,
-        R.drawable.appointment_indicator_leftside_13,
-        R.drawable.appointment_indicator_leftside_14,
-        R.drawable.appointment_indicator_leftside_15,
-        R.drawable.appointment_indicator_leftside_16,
-        R.drawable.appointment_indicator_leftside_17,
-        R.drawable.appointment_indicator_leftside_18,
-        R.drawable.appointment_indicator_leftside_19,
-        R.drawable.appointment_indicator_leftside_20,
-        R.drawable.appointment_indicator_leftside_21,
-    };
 
 
     public class Intents
@@ -282,9 +264,9 @@ public class K9 extends Application
              */
             MailService.actionReset(context, wakeLockId);
         }
-        Class[] classes = { MessageCompose.class, BootReceiver.class, MailService.class };
+        Class<?>[] classes = { MessageCompose.class, BootReceiver.class, MailService.class };
 
-        for (Class clazz : classes)
+        for (Class<?> clazz : classes)
         {
 
             boolean alreadyEnabled = pm.getComponentEnabledSetting(new ComponentName(context, clazz)) ==
@@ -319,10 +301,19 @@ public class K9 extends Application
         editor.putString("backgroundOperations", K9.backgroundOps.toString());
         editor.putBoolean("animations", mAnimations);
         editor.putBoolean("gesturesEnabled", mGesturesEnabled);
+        editor.putBoolean("manageBack", mManageBack);
+        editor.putBoolean("measureAccounts", mMeasureAccounts);
+        editor.putBoolean("countSearchMessages", mCountSearchMessages);
         editor.putBoolean("messageListStars",mMessageListStars);
         editor.putBoolean("messageListCheckboxes",mMessageListCheckboxes);
         editor.putBoolean("messageListTouchable",mMessageListTouchable);
+
+        editor.putBoolean("messageViewFixedWidthFont",mMessageViewFixedWidthFont);
+
         editor.putInt("theme", theme);
+        editor.putBoolean("useGalleryBugWorkaround", useGalleryBugWorkaround);
+
+        fontSizes.save(editor);
     }
 
     @Override
@@ -330,16 +321,27 @@ public class K9 extends Application
     {
         super.onCreate();
         app = this;
+
+        galleryBuggy = checkForBuggyGallery();
+
         Preferences prefs = Preferences.getPreferences(this);
         SharedPreferences sprefs = prefs.getPreferences();
         DEBUG = sprefs.getBoolean("enableDebugLogging", false);
         DEBUG_SENSITIVE = sprefs.getBoolean("enableSensitiveLogging", false);
         mAnimations = sprefs.getBoolean("animations", true);
         mGesturesEnabled = sprefs.getBoolean("gesturesEnabled", true);
+        mManageBack = sprefs.getBoolean("manageBack", false);
+        mMeasureAccounts = sprefs.getBoolean("measureAccounts", true);
+        mCountSearchMessages = sprefs.getBoolean("countSearchMessages", true);
         mMessageListStars = sprefs.getBoolean("messageListStars",true);
         mMessageListCheckboxes = sprefs.getBoolean("messageListCheckboxes",false);
         mMessageListTouchable = sprefs.getBoolean("messageListTouchable",false);
 
+        mMessageViewFixedWidthFont = sprefs.getBoolean("messageViewFixedWidthFont", false);
+
+        useGalleryBugWorkaround = sprefs.getBoolean("useGalleryBugWorkaround", K9.isGalleryBuggy());
+
+        fontSizes.load(sprefs);
 
         try
         {
@@ -455,12 +457,23 @@ public class K9 extends Application
     {
         return mGesturesEnabled;
     }
-    
+
     public static void setGesturesEnabled(boolean gestures)
     {
         mGesturesEnabled = gestures;
     }
-    
+
+
+    public static boolean manageBack()
+    {
+        return mManageBack;
+    }
+
+    public static void setManageBack(boolean manageBack)
+    {
+        mManageBack = manageBack;
+    }
+
     public static boolean isAnimations()
     {
         return mAnimations;
@@ -501,7 +514,17 @@ public class K9 extends Application
     }
 
 
-    private static Method getMethod(Class classObject, String methodName)
+    public static boolean messageViewFixedWidthFont()
+    {
+        return mMessageViewFixedWidthFont;
+    }
+
+    public static void setMessageViewFixedWidthFont(boolean fixed)
+    {
+        mMessageViewFixedWidthFont = fixed;
+    }
+
+    private static Method getMethod(Class<?> classObject, String methodName)
     {
         try
         {
@@ -511,12 +534,12 @@ public class K9 extends Application
         catch (NoSuchMethodException e)
         {
             Log.i(K9.LOG_TAG, "Can't get method " +
-                    classObject.toString() + "." + methodName);
+                  classObject.toString() + "." + methodName);
         }
         catch (Exception e)
         {
             Log.e(K9.LOG_TAG, "Error while using reflection to get method " +
-                    classObject.toString() + "." + methodName, e);
+                  classObject.toString() + "." + methodName, e);
         }
         return null;
     }
@@ -533,6 +556,69 @@ public class K9 extends Application
             {
                 Log.e(K9.LOG_TAG, "Error on invoking WebSettings.setBlockNetworkLoads()", e);
             }
+        }
+    }
+
+    public static FontSizes getFontSizes()
+    {
+        return fontSizes;
+    }
+
+    public static boolean measureAccounts()
+    {
+        return mMeasureAccounts;
+    }
+
+    public static void setMeasureAccounts(boolean measureAccounts)
+    {
+        mMeasureAccounts = measureAccounts;
+    }
+
+    public static boolean countSearchMessages()
+    {
+        return mCountSearchMessages;
+    }
+
+    public static void setCountSearchMessages(boolean countSearchMessages)
+    {
+        mCountSearchMessages = countSearchMessages;
+    }
+
+    public static boolean useGalleryBugWorkaround()
+    {
+        return useGalleryBugWorkaround;
+    }
+
+    public static void setUseGalleryBugWorkaround(boolean useGalleryBugWorkaround)
+    {
+        K9.useGalleryBugWorkaround = useGalleryBugWorkaround;
+    }
+
+    public static boolean isGalleryBuggy()
+    {
+        return galleryBuggy;
+    }
+
+    /**
+     * Check if this system contains a buggy Gallery 3D package.
+     *
+     * We have to work around the fact that those Gallery versions won't show
+     * any images or videos when the pick intent is used with a MIME type other
+     * than image/* or video/*. See issue 1186.
+     *
+     * @return true, if a buggy Gallery 3D package was found. False, otherwise.
+     */
+    private boolean checkForBuggyGallery()
+    {
+        try
+        {
+            PackageInfo pi = getPackageManager().getPackageInfo("com.cooliris.media", 0);
+
+            return (pi.versionCode == 30682);
+        }
+        catch (NameNotFoundException e)
+        {
+            return false;
         }
     }
 }

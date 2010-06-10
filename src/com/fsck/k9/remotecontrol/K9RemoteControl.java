@@ -2,11 +2,8 @@ package com.fsck.k9.remotecontrol;
 
 
 import android.app.Activity;
-import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
-import android.os.Bundle;
-import android.util.Log;
 
 /**
  * Utillity definitions for Android applications to control the behavior of K-9 Mail.  All such applications must declare the following permission:
@@ -110,6 +107,7 @@ public class K9RemoteControl
     public final static String K9_BACKGROUND_OPERATIONS_WHEN_CHECKED = "WHEN_CHECKED";
     public final static String K9_BACKGROUND_OPERATIONS_ALWAYS = "ALWAYS";
     public final static String K9_BACKGROUND_OPERATIONS_NEVER = "NEVER";
+    public final static String K9_BACKGROUND_OPERATIONS_WHEN_CHECKED_AUTO_SYNC = "WHEN_CHECKED_AUTO_SYNC";
 
     /**
      * Key for the {@link Intent} Extra to set for controlling which display theme K-9 will use.  Acceptable values are

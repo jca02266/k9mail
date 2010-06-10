@@ -15,6 +15,8 @@ import android.widget.Button;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import com.fsck.k9.*;
+import com.fsck.k9.activity.K9Activity;
+import com.fsck.k9.controller.MessagingController;
 import com.fsck.k9.mail.AuthenticationFailedException;
 import com.fsck.k9.mail.CertificateValidationException;
 import com.fsck.k9.mail.Store;
@@ -86,6 +88,7 @@ public class AccountSetupCheckSettings extends K9Activity implements OnClickList
 
         new Thread()
         {
+            @Override
             public void run()
             {
                 Store store = null;
@@ -108,7 +111,7 @@ public class AccountSetupCheckSettings extends K9Activity implements OnClickList
                         store.checkSettings();
 
                         MessagingController.getInstance(getApplication()).listFolders(mAccount, true, null);
-                        MessagingController.getInstance(getApplication()).synchronizeMailbox(mAccount, K9.INBOX , null);
+                        MessagingController.getInstance(getApplication()).synchronizeMailbox(mAccount, K9.INBOX , null, null);
 
                     }
                     if (mDestroyed)
@@ -325,6 +328,7 @@ public class AccountSetupCheckSettings extends K9Activity implements OnClickList
         });
     }
 
+    @Override
     public void onActivityResult(int reqCode, int resCode, Intent data)
     {
         setResult(resCode);
