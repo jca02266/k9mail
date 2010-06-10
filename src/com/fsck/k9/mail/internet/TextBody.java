@@ -22,7 +22,7 @@ public class TextBody implements Body
     {
         if (mBody != null)
         {
-            byte[] bytes = mBody.getBytes("UTF-8");
+            byte[] bytes = mBody.getBytes("ISO-2022-JP");
             if ("8bit".equals(mEncoding))
             {
                 out.write(bytes);

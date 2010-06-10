@@ -429,7 +429,7 @@ public class MimeMessage extends Message
         }
         else if (body instanceof TextBody)
         {
-            setHeader(MimeHeader.HEADER_CONTENT_TYPE, String.format("%s;\n charset=utf-8",
+            setHeader(MimeHeader.HEADER_CONTENT_TYPE, String.format("%s;\n charset=iso-2022-jp",
                       getMimeType()));
             setHeader(MimeHeader.HEADER_CONTENT_TRANSFER_ENCODING, "quoted-printable");
         }
