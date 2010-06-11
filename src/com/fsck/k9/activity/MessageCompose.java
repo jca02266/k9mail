@@ -1,8 +1,11 @@
 
 package com.fsck.k9.activity;
 
+import android.app.AlertDialog;
+import android.app.Dialog;
 import android.content.ContentResolver;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.pm.ActivityInfo;
 import android.database.Cursor;
@@ -14,6 +17,7 @@ import android.provider.OpenableColumns;
 import android.text.TextWatcher;
 import android.text.util.Rfc822Tokenizer;
 import android.util.Log;
+import android.view.KeyEvent;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
@@ -1223,6 +1227,63 @@ public class MessageCompose extends K9Activity implements OnClickListener, OnFoc
         }
 
         return true;
+    }
+
+    public void onBackPressed()
+    {
+        showDialog(1);
+    }
+
+    @Override
+    public Dialog onCreateDialog(int id)
+    {
+        switch (id)
+        {
+            case 1:
+                return new AlertDialog.Builder(this)
+                    .setTitle("Save draft message?")
+                    .setMessage("Save or Discard this message?")
+                    .setPositiveButton(R.string.okay_action, new DialogInterface.OnClickListener()
+                    {
+                        public void onClick(DialogInterface dialog, int whichButton)
+                        {
+                            dismissDialog(1);
+                            mDraftNeedsSaving = true;
+                            finish();
+                        }
+                        })
+                    .setNegativeButton(R.string.cancel_action, new DialogInterface.OnClickListener()
+                    {
+                        public void onClick(DialogInterface dialog, int whichButton)
+                        {
+                            dismissDialog(1);
+                            mDraftNeedsSaving = false;
+                            finish();
+                        }
+                        })
+                    .create();
+        }
+        return super.onCreateDialog(id);
+    }
+
+    @Override
+    public boolean onKeyDown(int keyCode, KeyEvent event)
+    {
+        if (
+            // TODO - when we move to android 2.0, uncomment this.
+            // android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.ECLAIR &&
+
+            keyCode == KeyEvent.KEYCODE_BACK
+            && event.getRepeatCount() == 0
+            && K9.manageBack())
+        {
+            // Take care of calling this method on earlier versions of
+            // the platform where it doesn't exist.
+            onBackPressed();
+            return true;
+        }
+
+        return super.onKeyDown(keyCode, event);
     }
 
     /**
