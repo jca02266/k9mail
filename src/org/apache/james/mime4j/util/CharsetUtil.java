@@ -1084,6 +1084,9 @@ public class CharsetUtil {
     public static final java.nio.charset.Charset UTF_8 = java.nio.charset.Charset
             .forName("UTF-8");
 
+    public static final java.nio.charset.Charset ISO_2022_JP = java.nio.charset.Charset
+            .forName("ISO-2022-JP");
+
     /**
      * Returns <code>true</code> if the specified character is a whitespace
      * character (CR, LF, SP or HT).

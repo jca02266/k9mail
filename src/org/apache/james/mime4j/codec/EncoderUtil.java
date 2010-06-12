@@ -582,9 +582,9 @@ public class EncoderUtil {
     }
 
     private static byte[] encode(String text, Charset charset) {
-        ByteBuffer buffer = charset.encode(text);
-        byte[] bytes = new byte[buffer.limit()];
-        buffer.get(bytes);
+        ByteBuffer buffer = charset.encode(text + "\n"); // Add "\n" which work around for converting to ISO-2022-JP
+        byte[] bytes = new byte[buffer.limit()-1];
+        buffer.get(bytes, 0, buffer.limit()-1);
         return bytes;
     }
 
@@ -596,7 +596,7 @@ public class EncoderUtil {
         for (int index = 0; index < len; index++) {
             char ch = text.charAt(index);
             if (ch > 0xff) {
-                return CharsetUtil.UTF_8;
+                return CharsetUtil.ISO_2022_JP;
             }
             if (ch > 0x7f) {
                 ascii = false;
