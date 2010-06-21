@@ -488,6 +488,7 @@ K-9 Mail セットアップにようこそ。\nK-9 はオープンソースで�
     <string name="account_settings_folders">フォルダ</string>
     <string name="account_settings_message_lists">メッセージ一覧</string>
     <string name="account_settings_message_view">メッセージ表示</string>
+    <string name="account_settings_quote_prefix_label">Quote prefix</string>
 
     <string name="account_settings_mail_check_frequency_label">電子メールの自動受信間隔</string>
     <string name="account_settings_second_class_check_frequency_label">2nd クラス自動受信間隔</string>
