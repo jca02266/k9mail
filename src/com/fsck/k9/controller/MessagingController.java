@@ -68,6 +68,7 @@ import com.fsck.k9.mail.store.LocalStore;
 import com.fsck.k9.mail.store.LocalStore.LocalFolder;
 import com.fsck.k9.mail.store.LocalStore.LocalMessage;
 import com.fsck.k9.mail.store.LocalStore.PendingCommand;
+import com.fsck.k9.mail.store.Pop3Store;
 
 
 /**
@@ -1177,7 +1178,8 @@ public class MessagingController implements Runnable
             /*
              * Remove any messages that are in the local store but no longer on the remote store or are too old
              */
-           
+            if (!(remoteFolder.getAccount().getRemoteStore() instanceof Pop3Store))
+            {
             for (Message localMessage : localMessages)
             {
                 if (remoteUidMap.get(localMessage.getUid()) == null && !localMessage.isSet(Flag.DELETED))
@@ -1193,6 +1195,7 @@ public class MessagingController implements Runnable
                         listener.synchronizeMailboxRemovedMessage(account, folder, localMessage);
                     }
                 }
+            }
             }
             localMessages = null;
 

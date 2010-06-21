@@ -44,7 +44,12 @@ public class MimeMessage extends Message
 
     public String getPath()
     {
-    	return mTemp.getPath();
+        if (mTemp != null) {    // FIXME: arai
+            return mTemp.getPath();
+        }
+        else {
+            return null;
+        }
     }
 
     public MimeMessage()
