@@ -591,6 +591,8 @@ K-9 Mail セットアップにようこそ。\nK-9 はオープンソースで�
     <string name="edit_identity_name_hint">(オプション)</string>
     <string name="edit_identity_email_label">メールアドレス</string>
     <string name="edit_identity_email_hint">(必須)</string>
+    <string name="edit_identity_reply_to_label">Reply-to address</string>
+    <string name="edit_identity_reply_to_hint">(Optional)</string>
     <string name="edit_identity_signature_label">署名</string>
     <string name="edit_identity_signature_hint">(オプション)</string>
 
