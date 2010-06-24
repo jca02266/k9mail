@@ -597,7 +597,6 @@ public class MessageCompose extends K9Activity implements OnClickListener, OnFoc
     public void onPause()
     {
         super.onPause();
-        saveIfNeeded();
         MessagingController.getInstance(getApplication()).removeListener(mListener);
     }
 
@@ -613,7 +612,6 @@ public class MessageCompose extends K9Activity implements OnClickListener, OnFoc
     protected void onSaveInstanceState(Bundle outState)
     {
         super.onSaveInstanceState(outState);
-        saveIfNeeded();
         ArrayList<Uri> attachments = new ArrayList<Uri>();
         for (int i = 0, count = mAttachments.getChildCount(); i < count; i++)
         {
@@ -1248,7 +1246,7 @@ public class MessageCompose extends K9Activity implements OnClickListener, OnFoc
                         public void onClick(DialogInterface dialog, int whichButton)
                         {
                             dismissDialog(1);
-                            mDraftNeedsSaving = true;
+                            sendOrSaveMessage(true);
                             finish();
                         }
                         })
@@ -1257,7 +1255,6 @@ public class MessageCompose extends K9Activity implements OnClickListener, OnFoc
                         public void onClick(DialogInterface dialog, int whichButton)
                         {
                             dismissDialog(1);
-                            mDraftNeedsSaving = false;
                             finish();
                         }
                         })
