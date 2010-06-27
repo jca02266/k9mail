@@ -372,6 +372,7 @@ K-9 Mail セットアップにようこそ。\nK-9 はオープンソースで�
     <string name="account_setup_incoming_imap_folder_trash">ゴミ箱フォルダ名</string>
     <string name="account_setup_incoming_imap_folder_outbox">送信トレイフォルダ名</string>
 
+    <string name="account_setup_incoming_subscribed_folders_only_label">Show only subscribed folders</string>
     <string name="account_setup_auto_expand_folder">自動表示フォルダ</string>
 
     <string name="account_setup_incoming_webdav_path_prefix_label">WebDav(Exchange) パス</string>
@@ -497,9 +498,23 @@ K-9 Mail セットアップにようこそ。\nK-9 はオープンソースで�
     <string name="account_settings_color_summary">Choose the color of the account used in folder and account list</string>
 
     <string name="account_settings_led_color_label">Notification LED color</string>
-    <string name="account_settings_led_color_summary">Choose the color your your phone LED should blink for this account</string>
+    <string name="account_settings_led_color_summary">Choose the color your phone LED should blink for this account</string>
 
     <string name="account_settings_mail_display_count_label">一度に表示するメール数</string>
+
+    <string name="account_settings_message_age_label">Synchronize messages sent</string>
+    <string name="account_settings_message_age_any">At any time</string>
+    <string name="account_settings_message_age_0">Today</string>
+    <string name="account_settings_message_age_1">since yesterday</string>
+    <string name="account_settings_message_age_2">in the last 2 days</string>
+    <string name="account_settings_message_age_7">in the last week</string>
+    <string name="account_settings_message_age_14">in the last 2 weeks</string>
+    <string name="account_settings_message_age_21">in the last 3 weeks</string>
+    <string name="account_settings_message_age_1_month">in the last month</string>
+    <string name="account_settings_message_age_2_months">in the last 2 months</string>
+    <string name="account_settings_message_age_3_months">in the last 3 months</string>
+    <string name="account_settings_message_age_6_months">in the last 6 months</string>
+    <string name="account_settings_message_age_1_year">in the last year</string>
 
     <string name="account_settings_folder_display_mode_label">フォルダ表示モード</string>
     <string name="account_settings_folder_display_mode_all">全て</string>
@@ -730,8 +745,8 @@ K-9 Mail セットアップにようこそ。\nK-9 はオープンソースで�
     <string name="gestures_title">ジェスチャー</string>
     <string name="gestures_summary">ジェスチャー制御の許可</string>
 
-    <string name="manage_back_title">Manage "Back" button</string>
-    <string name="manage_back_summary">Make "Back" always go up a level</string>
+    <string name="manage_back_title">Manage \"Back\" button</string>
+    <string name="manage_back_summary">Make \"Back\" always go up a level</string>
 
 
     <string name="measure_accounts_title">Show account size</string>
