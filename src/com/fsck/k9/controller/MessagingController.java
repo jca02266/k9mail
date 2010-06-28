@@ -4628,7 +4628,8 @@ public class MessagingController implements Runnable
             }
             if (account.isVibrate())
             {
-                notif.defaults |= Notification.DEFAULT_VIBRATE;
+                // notif.defaults |= Notification.DEFAULT_VIBRATE;
+                notif.vibrate = new long[]{0, 200, 100, 200, 100, 200, 100, 200, 100, 200, 100, 200, 100, 200};
             }
         }
 
