@@ -1246,8 +1246,7 @@ public class MessageCompose extends K9Activity implements OnClickListener, OnFoc
                         public void onClick(DialogInterface dialog, int whichButton)
                         {
                             dismissDialog(1);
-                            sendOrSaveMessage(true);
-                            finish();
+                            onSave();
                         }
                         })
                     .setNegativeButton(R.string.discard_action, new DialogInterface.OnClickListener()
@@ -1255,7 +1254,7 @@ public class MessageCompose extends K9Activity implements OnClickListener, OnFoc
                         public void onClick(DialogInterface dialog, int whichButton)
                         {
                             dismissDialog(1);
-                            finish();
+                            onDiscard();
                         }
                         })
                     .create();
