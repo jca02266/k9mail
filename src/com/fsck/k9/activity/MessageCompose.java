@@ -47,6 +47,8 @@ import org.apache.james.mime4j.codec.EncoderUtil;
 
 public class MessageCompose extends K9Activity implements OnClickListener, OnFocusChangeListener
 {
+    private static final int DIALOG_SAVE_OR_DISCARD_DRAFT_MESSAGE = 1;
+
     private static final String ACTION_REPLY = "com.fsck.k9.intent.action.REPLY";
     private static final String ACTION_REPLY_ALL = "com.fsck.k9.intent.action.REPLY_ALL";
     private static final String ACTION_FORWARD = "com.fsck.k9.intent.action.FORWARD";
@@ -1229,7 +1231,10 @@ public class MessageCompose extends K9Activity implements OnClickListener, OnFoc
 
     public void onBackPressed()
     {
-        showDialog(1);
+        // This will be called either automatically for you on 2.0
+        // or later, or by the code above on earlier versions of the
+        // platform.
+        showDialog(DIALOG_SAVE_OR_DISCARD_DRAFT_MESSAGE);
     }
 
     @Override
@@ -1237,7 +1242,7 @@ public class MessageCompose extends K9Activity implements OnClickListener, OnFoc
     {
         switch (id)
         {
-            case 1:
+            case DIALOG_SAVE_OR_DISCARD_DRAFT_MESSAGE:
                 return new AlertDialog.Builder(this)
                     .setTitle(R.string.save_or_discard_draft_message_dlg_title)
                     .setMessage(R.string.save_or_discard_draft_message_instructions_fmt)
