@@ -1239,9 +1239,9 @@ public class MessageCompose extends K9Activity implements OnClickListener, OnFoc
         {
             case 1:
                 return new AlertDialog.Builder(this)
-                    .setTitle("Save draft message?")
-                    .setMessage("Save or Discard this message?")
-                    .setPositiveButton(R.string.okay_action, new DialogInterface.OnClickListener()
+                    .setTitle(R.string.save_or_discard_draft_message_dlg_title)
+                    .setMessage(R.string.save_or_discard_draft_message_instructions_fmt)
+                    .setPositiveButton(R.string.save_draft_action, new DialogInterface.OnClickListener()
                     {
                         public void onClick(DialogInterface dialog, int whichButton)
                         {
@@ -1250,7 +1250,7 @@ public class MessageCompose extends K9Activity implements OnClickListener, OnFoc
                             finish();
                         }
                         })
-                    .setNegativeButton(R.string.cancel_action, new DialogInterface.OnClickListener()
+                    .setNegativeButton(R.string.discard_action, new DialogInterface.OnClickListener()
                     {
                         public void onClick(DialogInterface dialog, int whichButton)
                         {
