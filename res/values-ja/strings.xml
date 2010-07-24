@@ -289,7 +289,7 @@ K-9 Mail セットアップにようこそ。\nK-9 はオープンソースで�
     <string name="folder_push_active_symbol">(プッシュ)</string>
 
     <string name="find_action">メール検索</string>
-    <string name="from_same_sender">同一送信者</string> <!-- 誤訳の可能性大 -->
+    <string name="from_same_sender">この送信者からのメールを検索</string>
 
     <string name="message_copied_toast">メールをコピーしました</string>
     <string name="message_moved_toast">メールを移動しました</string>
