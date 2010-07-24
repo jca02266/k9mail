@@ -274,6 +274,8 @@ K-9 Mail セットアップにようこそ。\nK-9 はオープンソースで�
     <string name="message_view_fetching_attachment_toast">添付取込中</string>
     <string name="message_view_no_viewer">添付ファイルのビューワー見つけられません .<xliff:g id="mimetype">%s</xliff:g></string>
 
+    <string name="message_view_download_remainder">すべてダウンロード</string>
+
     <!-- NOTE: The following message refers to strings with id 'account_setup_incoming_save_all_headers_label' and 'account_setup_incoming_title' -->
     <string name="message_additional_headers_not_downloaded">全てのヘッダをダウンロードまたは保存したわけではありません．そうするためには、アカウント設定の受信メールサーバ設定で「全てのヘッダを端末に保存」をチェックしてください．</string>
     <string name="message_no_additional_headers_available">全てのヘッダをダウンロードしましたが、表示する追加ヘッダはありませんでした．</string>
@@ -665,6 +667,7 @@ K-9 Mail セットアップにようこそ。\nK-9 はオープンソースで�
     <string name="default_identity_description">差出人情報の初期設定</string>
     <string name="choose_identity">差出人情報選択</string>
     <string name="choose_identity_title">差出人情報選択</string>
+    <string name="choose_account_title">アカウント選択</string>
 
     <string name="no_identities">アカウント設定 -&gt; 差出人情報管理 で差出人情報を作成してください</string>
     <string name="no_removable_identity">最後の差出人情報は削除できません</string>
