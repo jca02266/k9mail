@@ -225,9 +225,9 @@ K-9 Mail セットアップにようこそ。\nK-9 はオープンソースで�
 
     <string name="message_header_mua">K-9 for Android </string>
 
-    <string name="combined_inbox_title">全てのメール</string>
+    <string name="combined_inbox_title">すべてのメール</string>
     <string name="combined_inbox_label">全アカウントの最新メール</string>
-    <string name="combined_inbox_list_title">受信トレイ全てのメール</string>
+    <string name="combined_inbox_list_title">受信トレイすべてのメール</string>
 
     <string name="message_list_title_fmt"><xliff:g id="account">%s</xliff:g>:<xliff:g id="folder">%s</xliff:g>
                        <xliff:g id="unread_count">%s</xliff:g>
@@ -277,8 +277,8 @@ K-9 Mail セットアップにようこそ。\nK-9 はオープンソースで�
     <string name="message_view_download_remainder">すべてダウンロード</string>
 
     <!-- NOTE: The following message refers to strings with id 'account_setup_incoming_save_all_headers_label' and 'account_setup_incoming_title' -->
-    <string name="message_additional_headers_not_downloaded">全てのヘッダをダウンロードまたは保存したわけではありません．そうするためには、アカウント設定の受信メールサーバ設定で「全てのヘッダを端末に保存」をチェックしてください．</string>
-    <string name="message_no_additional_headers_available">全てのヘッダをダウンロードしましたが、表示する追加ヘッダはありませんでした．</string>
+    <string name="message_additional_headers_not_downloaded">一部のヘッダしか保存されていません．ヘッダをすべて保存するためには、アカウント設定の受信メールサーバ設定で「すべてのヘッダを端末に保存」をチェックしてください．</string>
+    <string name="message_no_additional_headers_available">すべてのヘッダをダウンロードしましたが、表示すべき追加ヘッダはありませんでした．</string>
     <string name="message_additional_headers_retrieval_failed">追加ヘッダをデータベースまたはメールサーバから取得できませんでした．</string>
 
     <string name="mailbox_select_dlg_title">フォルダ</string>
@@ -371,7 +371,7 @@ K-9 Mail セットアップにようこそ。\nK-9 はオープンソースで�
     <string name="account_setup_incoming_other_label">その他</string>
 
     <string name="account_setup_incoming_save_all_headers_title">メールヘッダのダウンロード</string>
-    <string name="account_setup_incoming_save_all_headers_label">全てのヘッダを端末に保存</string>
+    <string name="account_setup_incoming_save_all_headers_label">すべてのヘッダを端末に保存</string>
 
     <string name="account_setup_expunge_policy_label">メッセージ完全削除(Expunge)</string>
     <string name="account_setup_expunge_policy_immediately">削除または移動後即時</string>
@@ -553,30 +553,30 @@ K-9 Mail セットアップにようこそ。\nK-9 はオープンソースで�
 
 
     <string name="account_settings_folder_display_mode_label">フォルダ表示モード</string>
-    <string name="account_settings_folder_display_mode_all">全て</string>
+    <string name="account_settings_folder_display_mode_all">すべて</string>
     <string name="account_settings_folder_display_mode_first_class">1st クラスフォルダのみ</string>
     <string name="account_settings_folder_display_mode_first_and_second_class">1st および 2nd クラスフォルダ</string>
-    <string name="account_settings_folder_display_mode_not_second_class">2nd クラスフォルダを除く全て</string>
+    <string name="account_settings_folder_display_mode_not_second_class">2nd クラスフォルダを除くすべて</string>
 
     <string name="account_settings_folder_sync_mode_label">フォルダ同期モード</string>
-    <string name="account_settings_folder_sync_mode_all">全て</string>
+    <string name="account_settings_folder_sync_mode_all">すべて</string>
     <string name="account_settings_folder_sync_mode_first_class">1st クラスフォルダのみ</string>
     <string name="account_settings_folder_sync_mode_first_and_second_class">1st および 2nd クラスフォルダ</string>
-    <string name="account_settings_folder_sync_mode_not_second_class">2nd クラスフォルダを除く全て</string>
+    <string name="account_settings_folder_sync_mode_not_second_class">2nd クラスフォルダを除くすべて</string>
     <string name="account_settings_folder_sync_mode_none">何もしない</string>
 
     <string name="account_settings_folder_push_mode_label">プッシュ受信するフォルダ</string>
-    <string name="account_settings_folder_push_mode_all">全て</string>
+    <string name="account_settings_folder_push_mode_all">すべて</string>
     <string name="account_settings_folder_push_mode_first_class">1st クラスフォルダのみ</string>
     <string name="account_settings_folder_push_mode_first_and_second_class">1st および 2nd クラスフォルダ</string>
-    <string name="account_settings_folder_push_mode_not_second_class">2nd クラスフォルダを除く全て</string>
+    <string name="account_settings_folder_push_mode_not_second_class">2nd クラスフォルダを除くすべて</string>
     <string name="account_settings_folder_push_mode_none">何もしない</string>
 
     <string name="account_settings_folder_target_mode_label">移動/コピー先のフォルダ</string>
-    <string name="account_settings_folder_target_mode_all">全て</string>
+    <string name="account_settings_folder_target_mode_all">すべて</string>
     <string name="account_settings_folder_target_mode_first_class">1st クラスフォルダのみ</string>
     <string name="account_settings_folder_target_mode_first_and_second_class">1st および 2nd クラスフォルダ</string>
-    <string name="account_settings_folder_target_mode_not_second_class">2nd クラスフォルダを除く全て</string>
+    <string name="account_settings_folder_target_mode_not_second_class">2nd クラスフォルダを除くすべて</string>
 
     <string name="account_settings_sync_remote_deletetions_label">メッセージ削除の同期</string>
     <string name="account_settings_sync_remote_deletetions_summary">サーバでメッセージを削除したときにローカルも削除する</string>
@@ -661,7 +661,7 @@ K-9 Mail セットアップにようこそ。\nK-9 はオープンソースで�
 
     <string name="account_settings_signature_use_label">署名を付ける</string>
     <string name="account_settings_signature_label">署名</string>
-    <string name="account_settings_signature_summary">送信する全てのメールに署名を付与します</string>
+    <string name="account_settings_signature_summary">送信するすべてのメールに署名を付与します</string>
 
     <string name="default_signature">--\nSent from my Android phone with K-9. Please excuse my brevity.</string>
     <string name="default_identity_description">差出人情報の初期設定</string>
@@ -722,7 +722,7 @@ K-9 Mail セットアップにようこそ。\nK-9 はオープンソースで�
     <string name="folder_list_help_key">
       1 - 1st クラスフォルダ表示\u000A
       2 - 1st と 2nd クラスフォルダ表示\u000A
-      3 - 2nd クラスフォルダを除く全て表示\u000A
+      3 - 2nd クラスフォルダを除くすべて表示\u000A
       4 - 全フォルダ表示\u000A
       Q - アカウント設定に戻る\u000A
       S - アカウント設定編集</string>
@@ -731,7 +731,7 @@ K-9 Mail セットアップにようこそ。\nK-9 はオープンソースで�
     <string name="folder_list_display_mode_all">全フォルダ表示</string>
     <string name="folder_list_display_mode_first_class">1st クラスフォルダ表示</string>
     <string name="folder_list_display_mode_first_and_second_class">1st と 2nd クラスフォルダ表示</string>
-    <string name="folder_list_display_mode_not_second_class">2nd クラスフォルダを除く全て表示</string>
+    <string name="folder_list_display_mode_not_second_class">2nd クラスフォルダを除くすべて表示</string>
 
 
 
@@ -827,7 +827,7 @@ K-9 Mail セットアップにようこそ。\nK-9 はオープンソースで�
     <string name="folder_settings_include_in_integrated_inbox_summary">未読メッセージを統合フォルダで表示</string>
 
     <string name="account_settings_searchable_label">フォルダ検索</string>
-    <string name="account_settings_searchable_all">全て</string>
+    <string name="account_settings_searchable_all">すべて</string>
     <string name="account_settings_searchable_displayable">表示可能範囲</string>
     <string name="account_settings_searchable_none">設定しない</string>
 
