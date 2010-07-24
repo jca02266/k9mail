@@ -10,6 +10,7 @@ import android.content.Intent;
 import android.content.pm.ActivityInfo;
 import android.database.Cursor;
 import android.net.Uri;
+import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Parcelable;
@@ -56,8 +57,7 @@ public class MessageCompose extends K9Activity implements OnClickListener, OnFoc
 
 
     private static final String EXTRA_ACCOUNT = "account";
-    private static final String EXTRA_FOLDER = "folder";
-    private static final String EXTRA_MESSAGE = "message";
+    private static final String EXTRA_MESSAGE_REFERENCE = "message_reference";
 
     private static final String STATE_KEY_ATTACHMENTS =
         "com.fsck.k9.activity.MessageCompose.attachments";
@@ -87,14 +87,30 @@ public class MessageCompose extends K9Activity implements OnClickListener, OnFoc
 
     private static final int ACTIVITY_REQUEST_PICK_ATTACHMENT = 1;
     private static final int ACTIVITY_CHOOSE_IDENTITY = 2;
+    private static final int ACTIVITY_CHOOSE_ACCOUNT = 3;
 
+    /**
+     * The account used for message composition.
+     */
     private Account mAccount;
+
+    /**
+     * This identity's settings are used for message composition.
+     * Note: This has to be an identity of the account {@link #mAccount}.
+     */
     private Identity mIdentity;
+
     private boolean mIdentityChanged = false;
     private boolean mSignatureChanged = false;
-    private String mFolder;
-    private String mSourceMessageUid;
+
+    /**
+     * Reference to the source message (in case of reply, forward, or edit
+     * draft actions).
+     */
+    private MessageReference mMessageReference;
+
     private Message mSourceMessage;
+
     /**
      * Indicates that the source message has been processed at least once and should not
      * be processed on any subsequent loads. This protects us from adding attachments that
@@ -212,9 +228,7 @@ public class MessageCompose extends K9Activity implements OnClickListener, OnFoc
         boolean replyAll)
     {
         Intent i = new Intent(context, MessageCompose.class);
-        i.putExtra(EXTRA_ACCOUNT, account.getUuid());
-        i.putExtra(EXTRA_FOLDER, message.getFolder().getName());
-        i.putExtra(EXTRA_MESSAGE, message.getUid());
+        i.putExtra(EXTRA_MESSAGE_REFERENCE, message.makeMessageReference());
         if (replyAll)
         {
             i.setAction(ACTION_REPLY_ALL);
@@ -235,9 +249,7 @@ public class MessageCompose extends K9Activity implements OnClickListener, OnFoc
     public static void actionForward(Context context, Account account, Message message)
     {
         Intent i = new Intent(context, MessageCompose.class);
-        i.putExtra(EXTRA_ACCOUNT, account.getUuid());
-        i.putExtra(EXTRA_FOLDER, message.getFolder().getName());
-        i.putExtra(EXTRA_MESSAGE, message.getUid());
+        i.putExtra(EXTRA_MESSAGE_REFERENCE, message.makeMessageReference());
         i.setAction(ACTION_FORWARD);
         context.startActivity(i);
     }
@@ -255,9 +267,7 @@ public class MessageCompose extends K9Activity implements OnClickListener, OnFoc
     public static void actionEditDraft(Context context, Account account, Message message)
     {
         Intent i = new Intent(context, MessageCompose.class);
-        i.putExtra(EXTRA_ACCOUNT, account.getUuid());
-        i.putExtra(EXTRA_FOLDER, message.getFolder().getName());
-        i.putExtra(EXTRA_MESSAGE, message.getUid());
+        i.putExtra(EXTRA_MESSAGE_REFERENCE, message.makeMessageReference());
         i.setAction(ACTION_EDIT_DRAFT);
         context.startActivity(i);
     }
@@ -266,19 +276,24 @@ public class MessageCompose extends K9Activity implements OnClickListener, OnFoc
     public void onCreate(Bundle savedInstanceState)
     {
         super.onCreate(savedInstanceState);
-
         requestWindowFeature(Window.FEATURE_INDETERMINATE_PROGRESS);
-
         setContentView(R.layout.message_compose);
 
-        Intent intent = getIntent();
-        String accountUuid = intent.getStringExtra(EXTRA_ACCOUNT);
+        final Intent intent = getIntent();
+
+        mMessageReference = (MessageReference) intent.getSerializableExtra(EXTRA_MESSAGE_REFERENCE);
+
+        final String accountUuid = (mMessageReference != null) ?
+                                   mMessageReference.accountUuid :
+                                   intent.getStringExtra(EXTRA_ACCOUNT);
+
         mAccount = Preferences.getPreferences(this).getAccount(accountUuid);
 
         if (mAccount == null)
         {
             mAccount = Preferences.getPreferences(this).getDefaultAccount();
         }
+
         if (mAccount == null)
         {
             /*
@@ -290,7 +305,6 @@ public class MessageCompose extends K9Activity implements OnClickListener, OnFoc
             finish();
             return;
         }
-
 
         mAddressAdapter = EmailAddressAdapter.getInstance(this);
         mAddressValidator = new EmailAddressValidator();
@@ -512,11 +526,6 @@ public class MessageCompose extends K9Activity implements OnClickListener, OnFoc
             mBccView.setText(addressList);
 
         }
-        else
-        {
-            mFolder = (String) intent.getStringExtra(EXTRA_FOLDER);
-            mSourceMessageUid = (String) intent.getStringExtra(EXTRA_MESSAGE);
-        }
 
         if (mIdentity == null)
         {
@@ -545,7 +554,10 @@ public class MessageCompose extends K9Activity implements OnClickListener, OnFoc
             updateFrom();
             updateSignature();
 
-            if (ACTION_REPLY.equals(action) || ACTION_REPLY_ALL.equals(action) || ACTION_FORWARD.equals(action) || ACTION_EDIT_DRAFT.equals(action))
+            if (ACTION_REPLY.equals(action) ||
+                    ACTION_REPLY_ALL.equals(action) ||
+                    ACTION_FORWARD.equals(action) ||
+                    ACTION_EDIT_DRAFT.equals(action))
             {
                 /*
                  * If we need to load the message we add ourself as a message listener here
@@ -554,34 +566,48 @@ public class MessageCompose extends K9Activity implements OnClickListener, OnFoc
                  * There is no harm in adding twice.
                  */
                 MessagingController.getInstance(getApplication()).addListener(mListener);
-                MessagingController.getInstance(getApplication()).loadMessageForView(mAccount, mFolder, mSourceMessageUid, null);
+
+                final Account account = Preferences.getPreferences(this).getAccount(mMessageReference.accountUuid);
+                final String folderName = mMessageReference.folderName;
+                final String sourceMessageUid = mMessageReference.uid;
+                MessagingController.getInstance(getApplication()).loadMessageForView(account, folderName, sourceMessageUid, null);
             }
 
             if (!ACTION_EDIT_DRAFT.equals(action))
             {
                 String bccAddress = mAccount.getAlwaysBcc();
-                if (bccAddress!=null
-                        && !"".equals(bccAddress))
+                if ((bccAddress != null) && !("".equals(bccAddress)))
                 {
-                    addAddress(mBccView, new Address(mAccount.getAlwaysBcc(), ""));
+                    addAddress(mBccView, new Address(bccAddress, ""));
                 }
             }
 
+            /*
             if (K9.DEBUG)
-                Log.d(K9.LOG_TAG, "action = " + action + ", mAccount = " + mAccount + ", mFolder = " + mFolder + ", mSourceMessageUid = " + mSourceMessageUid);
-            if ((ACTION_REPLY.equals(action) || ACTION_REPLY_ALL.equals(action)) && mAccount != null && mFolder != null && mSourceMessageUid != null)
+                Log.d(K9.LOG_TAG, "action = " + action + ", account = " + mMessageReference.accountUuid + ", folder = " + mMessageReference.folderName + ", sourceMessageUid = " + mMessageReference.uid);
+            */
+
+            if (ACTION_REPLY.equals(action) ||
+                    ACTION_REPLY_ALL.equals(action))
             {
                 if (K9.DEBUG)
                     Log.d(K9.LOG_TAG, "Setting message ANSWERED flag to true");
+
                 // TODO: Really, we should wait until we send the message, but that would require saving the original
                 // message info along with a Draft copy, in case it is left in Drafts for a while before being sent
-                MessagingController.getInstance(getApplication()).setFlag(mAccount, mFolder, new String[] { mSourceMessageUid }, Flag.ANSWERED, true);
+
+                final Account account = Preferences.getPreferences(this).getAccount(mMessageReference.accountUuid);
+                final String folderName = mMessageReference.folderName;
+                final String sourceMessageUid = mMessageReference.uid;
+                MessagingController.getInstance(getApplication()).setFlag(account, folderName, new String[] { sourceMessageUid }, Flag.ANSWERED, true);
             }
 
             updateTitle();
         }
 
-        if (ACTION_REPLY.equals(action) || ACTION_REPLY_ALL.equals(action) || ACTION_EDIT_DRAFT.equals(action))
+        if (ACTION_REPLY.equals(action) ||
+                ACTION_REPLY_ALL.equals(action) ||
+                ACTION_EDIT_DRAFT.equals(action))
         {
             //change focus to message body.
             mMessageContentView.requestFocus();
@@ -842,78 +868,15 @@ public class MessageCompose extends K9Activity implements OnClickListener, OnFoc
         return text;
     }
 
-    private void sendOrSaveMessage(boolean save)
+
+
+    private void sendMessage()
     {
-        /*
-         * Create the message from all the data the user has entered.
-         */
-        MimeMessage message;
-        try
-        {
-            message = createMessage(!save);  // Only append sig on save
-        }
-        catch (MessagingException me)
-        {
-            Log.e(K9.LOG_TAG, "Failed to create new message for send or save.", me);
-            throw new RuntimeException("Failed to create a new message for send or save.", me);
-        }
-
-        if (save)
-        {
-            /*
-             * Save a draft
-             */
-            if (mDraftUid != null)
-            {
-                message.setUid(mDraftUid);
-            }
-            else if (ACTION_EDIT_DRAFT.equals(getIntent().getAction()))
-            {
-                /*
-                 * We're saving a previously saved draft, so update the new message's uid
-                 * to the old message's uid.
-                 */
-                message.setUid(mSourceMessageUid);
-            }
-
-            String k9identity = Utility.base64Encode("" + mMessageContentView.getText().toString().length());
-
-            if (mIdentityChanged || mSignatureChanged)
-            {
-                String signature  = mSignatureView.getText().toString();
-                k9identity += ":" + Utility.base64Encode(signature);
-                if (mIdentityChanged)
-                {
-
-                    String name = mIdentity.getName();
-                    String email = mIdentity.getEmail();
-
-                    k9identity +=  ":" + Utility.base64Encode(name) + ":" + Utility.base64Encode(email);
-                }
-            }
-
-            if (K9.DEBUG)
-                Log.d(K9.LOG_TAG, "Saving identity: " + k9identity);
-            message.addHeader(K9.K9MAIL_IDENTITY, k9identity);
-
-            Message draftMessage = MessagingController.getInstance(getApplication()).saveDraft(mAccount, message);
-            mDraftUid = draftMessage.getUid();
-
-            // Don't display the toast if the user is just changing the orientation
-            if ((getChangingConfigurations() & ActivityInfo.CONFIG_ORIENTATION) == 0)
-            {
-                mHandler.sendEmptyMessage(MSG_SAVED_DRAFT);
-            }
-        }
-        else
-        {
-            MessagingController.getInstance(getApplication()).sendMessage(mAccount, message, null);
-            if (mDraftUid != null)
-            {
-                MessagingController.getInstance(getApplication()).deleteDraft(mAccount, mDraftUid);
-                mDraftUid = null;
-            }
-        }
+        new SendMessageTask().execute();
+    }
+    private void saveMessage()
+    {
+        new SaveMessageTask().execute();
     }
 
     private void saveIfNeeded()
@@ -923,7 +886,7 @@ public class MessageCompose extends K9Activity implements OnClickListener, OnFoc
             return;
         }
         mDraftNeedsSaving = false;
-        sendOrSaveMessage(true);
+        saveMessage();
     }
 
     private void onSend()
@@ -934,7 +897,7 @@ public class MessageCompose extends K9Activity implements OnClickListener, OnFoc
             Toast.makeText(this, getString(R.string.message_compose_error_no_recipients), Toast.LENGTH_LONG).show();
             return;
         }
-        sendOrSaveMessage(false);
+        sendMessage();
         mDraftNeedsSaving = false;
         finish();
     }
@@ -1103,7 +1066,70 @@ public class MessageCompose extends K9Activity implements OnClickListener, OnFoc
             case ACTIVITY_CHOOSE_IDENTITY:
                 onIdentityChosen(data);
                 break;
+            case ACTIVITY_CHOOSE_ACCOUNT:
+                onAccountChosen(data);
+                break;
         }
+    }
+
+    private void onAccountChosen(final Intent intent)
+    {
+        final Bundle extras = intent.getExtras();
+        final String uuid = extras.getString(ChooseAccount.EXTRA_ACCOUNT);
+        final Identity identity = (Identity) extras.getSerializable(ChooseAccount.EXTRA_IDENTITY);
+
+        final Account account = Preferences.getPreferences(this).getAccount(uuid);
+
+        if (!mAccount.equals(account))
+        {
+            if (K9.DEBUG)
+            {
+                Log.v(K9.LOG_TAG, "Switching account from " + mAccount + " to " + account);
+            }
+
+            // on draft edit, make sure we don't keep previous message UID
+            if (ACTION_EDIT_DRAFT.equals(getIntent().getAction()))
+            {
+                mMessageReference = null;
+            }
+
+            // test whether there is something to save
+            if (mDraftNeedsSaving || (mDraftUid != null))
+            {
+                final String previousDraftUid = mDraftUid;
+                final Account previousAccount = mAccount;
+
+                // make current message appear as new
+                mDraftUid = null;
+
+                // actual account switch
+                mAccount = account;
+
+                if (K9.DEBUG)
+                {
+                    Log.v(K9.LOG_TAG, "Account switch, saving new draft in new account");
+                }
+                saveMessage();
+
+                if (previousDraftUid != null)
+                {
+                    if (K9.DEBUG)
+                    {
+                        Log.v(K9.LOG_TAG, "Account switch, deleting draft from previous account: "
+                              + previousDraftUid);
+                    }
+                    MessagingController.getInstance(getApplication()).deleteDraft(previousAccount,
+                            previousDraftUid);
+                }
+            }
+            else
+            {
+                mAccount = account;
+            }
+            // not sure how to handle mFolder, mSourceMessage?
+        }
+
+        switchToIdentity(identity);
     }
 
     private void onIdentityChosen(Intent intent)
@@ -1201,7 +1227,16 @@ public class MessageCompose extends K9Activity implements OnClickListener, OnFoc
 
     private void onChooseIdentity()
     {
-        if (mAccount.getIdentities().size() > 1)
+        // keep things simple: trigger account choice only if there are more
+        // than 1 account
+        if (Preferences.getPreferences(this).getAccounts().length > 1)
+        {
+            final Intent intent = new Intent(this, ChooseAccount.class);
+            intent.putExtra(ChooseAccount.EXTRA_ACCOUNT, mAccount.getUuid());
+            intent.putExtra(ChooseAccount.EXTRA_IDENTITY, mIdentity);
+            startActivityForResult(intent, ACTIVITY_CHOOSE_ACCOUNT);
+        }
+        else if (mAccount.getIdentities().size() > 1)
         {
             Intent intent = new Intent(this, ChooseIdentity.class);
             intent.putExtra(ChooseIdentity.EXTRA_ACCOUNT, mAccount.getUuid());
@@ -1702,8 +1737,7 @@ public class MessageCompose extends K9Activity implements OnClickListener, OnFoc
         @Override
         public void loadMessageForViewStarted(Account account, String folder, String uid)
         {
-            if (mSourceMessageUid==null
-                    || !mSourceMessageUid.equals(uid))
+            if ((mMessageReference == null) || !mMessageReference.uid.equals(uid))
             {
                 return;
             }
@@ -1714,8 +1748,7 @@ public class MessageCompose extends K9Activity implements OnClickListener, OnFoc
         @Override
         public void loadMessageForViewFinished(Account account, String folder, String uid, Message message)
         {
-            if (mSourceMessageUid==null
-                    || !mSourceMessageUid.equals(uid))
+            if ((mMessageReference == null) || !mMessageReference.uid.equals(uid))
             {
                 return;
             }
@@ -1726,8 +1759,7 @@ public class MessageCompose extends K9Activity implements OnClickListener, OnFoc
         @Override
         public void loadMessageForViewBodyAvailable(Account account, String folder, String uid, final Message message)
         {
-            if (mSourceMessageUid==null
-                    || !mSourceMessageUid.equals(uid))
+            if ((mMessageReference == null) || !mMessageReference.uid.equals(uid))
             {
                 return;
             }
@@ -1745,8 +1777,7 @@ public class MessageCompose extends K9Activity implements OnClickListener, OnFoc
         @Override
         public void loadMessageForViewFailed(Account account, String folder, String uid, Throwable t)
         {
-            if (mSourceMessageUid==null
-                    || !mSourceMessageUid.equals(uid))
+            if ((mMessageReference == null) || !mMessageReference.uid.equals(uid))
             {
                 return;
             }
@@ -1757,23 +1788,32 @@ public class MessageCompose extends K9Activity implements OnClickListener, OnFoc
         @Override
         public void messageUidChanged(Account account, String folder, String oldUid, String newUid)
         {
-            if (account.equals(mAccount) && folder.equals(mAccount.getDraftsFolderName()))
+            //TODO: is this really necessary here? mDraftUid is update after the call to MessagingController.saveDraft()
+            // Track UID changes of the draft message
+            if (account.equals(mAccount) &&
+                    folder.equals(mAccount.getDraftsFolderName()) &&
+                    oldUid.equals(mDraftUid))
             {
-                if (oldUid.equals(mDraftUid))
-                {
-                    mDraftUid = newUid;
-                }
+                mDraftUid = newUid;
             }
 
-            if (account.equals(mAccount) && (folder.equals(mFolder)))
+            // Track UID changes of the source message
+            if (mMessageReference != null)
             {
-                if (oldUid.equals(mSourceMessageUid))
+                final Account sourceAccount = Preferences.getPreferences(MessageCompose.this).getAccount(mMessageReference.accountUuid);
+                final String sourceFolder = mMessageReference.folderName;
+                final String sourceMessageUid = mMessageReference.uid;
+
+                if (account.equals(sourceAccount) && (folder.equals(sourceFolder)))
                 {
-                    mSourceMessageUid = newUid;
-                }
-                if (mSourceMessage != null && (oldUid.equals(mSourceMessage.getUid())))
-                {
-                    mSourceMessage.setUid(newUid);
+                    if (oldUid.equals(sourceMessageUid))
+                    {
+                        mMessageReference.uid = newUid;
+                    }
+                    if ((mSourceMessage != null) && (oldUid.equals(mSourceMessage.getUid())))
+                    {
+                        mSourceMessage.setUid(newUid);
+                    }
                 }
             }
         }
@@ -1851,4 +1891,101 @@ public class MessageCompose extends K9Activity implements OnClickListener, OnFoc
             mMessageContentView.setText(body.get(0));
         }
     }
+
+    private class SendMessageTask extends AsyncTask<Void, Void, Void>
+    {
+        protected Void doInBackground(Void... params)
+        {
+            /*
+             * Create the message from all the data the user has entered.
+             */
+            MimeMessage message;
+            try
+            {
+                message = createMessage(true);  // Only append sig on save
+            }
+            catch (MessagingException me)
+            {
+                Log.e(K9.LOG_TAG, "Failed to create new message for send or save.", me);
+                throw new RuntimeException("Failed to create a new message for send or save.", me);
+            }
+
+            MessagingController.getInstance(getApplication()).sendMessage(mAccount, message, null);
+            if (mDraftUid != null)
+            {
+                MessagingController.getInstance(getApplication()).deleteDraft(mAccount, mDraftUid);
+                mDraftUid = null;
+            }
+
+            return null;
+        }
+    }
+
+    private class SaveMessageTask extends AsyncTask<Void, Void, Void>
+    {
+        protected Void doInBackground(Void... params)
+        {
+
+            /*
+             * Create the message from all the data the user has entered.
+             */
+            MimeMessage message;
+            try
+            {
+                message = createMessage(false);  // Only append sig on save
+            }
+            catch (MessagingException me)
+            {
+                Log.e(K9.LOG_TAG, "Failed to create new message for send or save.", me);
+                throw new RuntimeException("Failed to create a new message for send or save.", me);
+            }
+
+            /*
+             * Save a draft
+             */
+            if (mDraftUid != null)
+            {
+                message.setUid(mDraftUid);
+            }
+            else if (ACTION_EDIT_DRAFT.equals(getIntent().getAction()))
+            {
+                /*
+                 * We're saving a previously saved draft, so update the new message's uid
+                 * to the old message's uid.
+                 */
+                message.setUid(mMessageReference.uid);
+            }
+
+            String k9identity = Utility.base64Encode("" + mMessageContentView.getText().toString().length());
+
+            if (mIdentityChanged || mSignatureChanged)
+            {
+                String signature  = mSignatureView.getText().toString();
+                k9identity += ":" + Utility.base64Encode(signature);
+                if (mIdentityChanged)
+                {
+
+                    String name = mIdentity.getName();
+                    String email = mIdentity.getEmail();
+
+                    k9identity +=  ":" + Utility.base64Encode(name) + ":" + Utility.base64Encode(email);
+                }
+            }
+
+            if (K9.DEBUG)
+                Log.d(K9.LOG_TAG, "Saving identity: " + k9identity);
+            message.addHeader(K9.K9MAIL_IDENTITY, k9identity);
+
+            Message draftMessage = MessagingController.getInstance(getApplication()).saveDraft(mAccount, message);
+            mDraftUid = draftMessage.getUid();
+
+            // Don't display the toast if the user is just changing the orientation
+            if ((getChangingConfigurations() & ActivityInfo.CONFIG_ORIENTATION) == 0)
+            {
+                mHandler.sendEmptyMessage(MSG_SAVED_DRAFT);
+            }
+            return null;
+        }
+    }
+
 }
