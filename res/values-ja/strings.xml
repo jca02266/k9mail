@@ -508,7 +508,13 @@ K-9 Mail セットアップにようこそ。\nK-9 はオープンソースで�
     <string name="account_settings_folders">フォルダ</string>
     <string name="account_settings_message_lists">メッセージ一覧</string>
     <string name="account_settings_message_view">メッセージ表示</string>
-    <string name="account_settings_quote_prefix_label">Quote prefix</string>
+    <string name="account_settings_quote_prefix_label">引用記号</string>
+    <string name="account_settings_crypto">Cryptography</string>
+    <string name="account_settings_crypto_app">OpenPGP Provider</string>
+    <string name="account_settings_crypto_app_none">None</string>
+    <string name="account_settings_crypto_app_not_available">not available</string>
+    <string name="account_settings_crypto_auto_signature">Auto-sign</string>
+    <string name="account_settings_crypto_auto_signature_summary">Use the account\'s email address to guess the signature key.</string>
 
     <string name="account_settings_mail_check_frequency_label">電子メールの自動受信間隔</string>
     <string name="account_settings_second_class_check_frequency_label">2nd クラス自動受信間隔</string>
@@ -882,6 +888,20 @@ K-9 Mail セットアップにようこそ。\nK-9 はオープンソースで�
     <string name="miscellaneous_preferences">その他</string>
     <string name="misc_preferences_attachment_title">ギャラリのバグ回避</string>
     <string name="misc_preferences_attachment_description">添付ファイルに画像/動画を追加するボタンを表示する(ギャラリ3Dバグを回避するため)</string>
+
+    <!-- APG related -->
+    <string name="error_activity_not_found">No suitable application for this action found.</string>
+    <string name="error_apg_version_not_supported">The installed APG version is not supported.</string>
+    <string name="btn_crypto_sign">Sign</string>
+    <string name="btn_encrypt">Encrypt</string>
+    <string name="btn_decrypt">Decrypt</string>
+    <string name="btn_verify">Verify</string>
+    <string name="unknown_crypto_signature_user_id">&lt;unknown&gt;</string>
+    <string name="key_id">id: %s</string>
+    <string name="insufficient_apg_permissions">K-9 doesn\'t have permission to access APG fully, please reinstall K-9 to fix that.</string>
+    <string name="pgp_mime_unsupported">PGP/MIME messages are not supported yet.</string>
+    <string name="attachment_encryption_unsupported">Warning: attachments are NOT signed or encrypted yet.</string>
+    <string name="send_aborted">Send aborted.</string>
 
     <string name="save_or_discard_draft_message_dlg_title">メッセージの下書き保存</string>
     <string name="save_or_discard_draft_message_instructions_fmt">メッセージを保存しますか？</string>
