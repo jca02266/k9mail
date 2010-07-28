@@ -510,11 +510,11 @@ K-9 Mail セットアップにようこそ。\nK-9 はオープンソースで�
     <string name="account_settings_message_view">メッセージ表示</string>
     <string name="account_settings_quote_prefix_label">引用記号</string>
     <string name="account_settings_crypto">暗号化方法</string>
-    <string name="account_settings_crypto_app">OpenPGP</string>
+    <string name="account_settings_crypto_app">OpenPGPの利用</string>
     <string name="account_settings_crypto_app_none">なし</string>
     <string name="account_settings_crypto_app_not_available">利用不可</string>
     <string name="account_settings_crypto_auto_signature">自動署名</string>
-    <string name="account_settings_crypto_auto_signature_summary">署名の鍵を推測するためにこのアカウントのE-Mailアドレスを利用する．</string>
+    <string name="account_settings_crypto_auto_signature_summary">このアカウントのE-Mailアドレスから署名の鍵を自動的に決定する．</string>
 
     <string name="account_settings_mail_check_frequency_label">電子メールの自動受信間隔</string>
     <string name="account_settings_second_class_check_frequency_label">2nd クラス自動受信間隔</string>
