@@ -342,11 +342,12 @@ public class MimeUtility
     }
 
     /**
-     * Reads the Part's body and returns a String based on any charset conversion that needed
-     * to be done.
-     * @param part
-     * @return
-     */
+      * Reads the Part's body and returns a String based on any charset conversion that needed
+      * to be done.
+      * @param part The part containing a body
+      * @return a String containing the converted text in the body, or null if there was no text
+      * or an error during conversion.
+      */
     public static String getTextFromPart(Part part)
     {
         try
@@ -384,10 +385,12 @@ public class MimeUtility
                      * Now we read the part into a buffer for further processing. Because
                      * the stream is now wrapped we'll remove any transfer encoding at this point.
                      */
-                    final InputStream in = part.getBody().getInputStream();
-                    ByteArrayOutputStream out = new ByteArrayOutputStream();
+                    InputStream in = part.getBody().getInputStream();
+                    ByteArrayOutputStream out = new ByteArrayOutputStream(in.available());
                     IOUtils.copy(in, out);
                     in.close();
+                    in = null;      // we want all of our memory back, and close might not release
+                                    // Cargo culted from AOSP - This disagrees with the platform docs
 
                     /*
                      * Convert and return as new String
@@ -397,6 +400,15 @@ public class MimeUtility
                     return result;
                 }
             }
+
+        }
+        catch (OutOfMemoryError oom)
+        {
+            /*
+             * If we are not able to process the body there's nothing we can do about it. Return
+             * null and let the upper layers handle the missing content.
+             */
+            Log.e(K9.LOG_TAG, "Unable to getTextFromPart " + oom.toString());
         }
         catch (Exception e)
         {
@@ -485,22 +497,6 @@ public class MimeUtility
     public static void collectParts(Part part, ArrayList<Part> viewables,
                                     ArrayList<Part> attachments) throws MessagingException
     {
-        String disposition = part.getDisposition();
-        String dispositionType = null;
-        String dispositionFilename = null;
-        if (disposition != null)
-        {
-            dispositionType = MimeUtility.getHeaderParameter(disposition, null);
-            dispositionFilename = MimeUtility.getHeaderParameter(disposition, "filename");
-        }
-
-        /*
-         * A best guess that this part is intended to be an attachment and not inline.
-         */
-        boolean attachment = ("attachment".equalsIgnoreCase(dispositionType))
-                             || (dispositionFilename != null)
-                             && (!"inline".equalsIgnoreCase(dispositionType));
-
         /*
          * If the part is Multipart but not alternative it's either mixed or
          * something we don't know about, which means we treat it as mixed
@@ -527,9 +523,37 @@ public class MimeUtility
          * If the part is HTML and it got this far it's part of a mixed (et
          * al) and should be rendered inline.
          */
-        else if ((!attachment) && (part.getMimeType().equalsIgnoreCase("text/html")))
-        {
+        else if (isPartTextualBody(part))  {
             viewables.add(part);
+        }
+        else
+        {
+            attachments.add(part);
+        }
+
+    }
+
+
+    public static Boolean isPartTextualBody (Part part) throws MessagingException
+    {
+        String disposition = part.getDisposition();
+        String dispositionType = null;
+        String dispositionFilename = null;
+        if (disposition != null)
+        {
+            dispositionType = MimeUtility.getHeaderParameter(disposition, null);
+            dispositionFilename = MimeUtility.getHeaderParameter(disposition, "filename");
+        }
+
+        /*
+         * A best guess that this part is intended to be an attachment and not inline.
+         */
+        boolean attachment = ("attachment".equalsIgnoreCase(dispositionType)
+                             || (dispositionFilename != null));
+
+        if ((!attachment) && (part.getMimeType().equalsIgnoreCase("text/html")))
+        {
+            return true;
         }
         /*
          * If the part is plain text and it got this far it's part of a
@@ -537,16 +561,17 @@ public class MimeUtility
          */
         else if ((!attachment) && (part.getMimeType().equalsIgnoreCase("text/plain")))
         {
-            viewables.add(part);
+            return true;
         }
         /*
          * Finally, if it's nothing else we will include it as an attachment.
          */
         else
         {
-            attachments.add(part);
+            return false;
         }
     }
+
 
     public static String getMimeTypeByExtension(String filename)
     {
