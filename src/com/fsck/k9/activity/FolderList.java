@@ -53,6 +53,7 @@ public class FolderList extends K9ListActivity
     private static final String EXTRA_INITIAL_FOLDER = "initialFolder";
     private static final String EXTRA_FROM_NOTIFICATION = "fromNotification";
     private static final String EXTRA_FROM_SHORTCUT = "fromShortcut";
+    private static final String EXTRA_CHECK_MAIL = "checkMail";
 
     private static final boolean REFRESH_REMOTE = true;
 
@@ -235,6 +236,8 @@ public class FolderList extends K9ListActivity
             intent.putExtra(EXTRA_FROM_SHORTCUT, true);
         }
 
+        intent.putExtra(EXTRA_CHECK_MAIL, true);
+
         return intent;
     }
 
@@ -322,12 +325,21 @@ public class FolderList extends K9ListActivity
         else if (intent.getBooleanExtra(EXTRA_FROM_SHORTCUT, false) &&
                  !K9.FOLDER_NONE.equals(mAccount.getAutoExpandFolderName()))
         {
+            if (intent.getBooleanExtra(EXTRA_CHECK_MAIL, false)) {
+                initializeActivityView();
+                checkMail(mAccount);
+            }
             onOpenFolder(mAccount.getAutoExpandFolderName());
             finish();
         }
+        else if (intent.getBooleanExtra(EXTRA_FROM_SHORTCUT, false)) {
+            initializeActivityView();
+            if (intent.getBooleanExtra(EXTRA_CHECK_MAIL, false)) {
+                checkMail(mAccount);
+            }
+        }
         else
         {
-
             initializeActivityView();
         }
     }
