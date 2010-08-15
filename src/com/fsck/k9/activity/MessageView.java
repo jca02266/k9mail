@@ -2063,11 +2063,11 @@ public class MessageView extends K9Activity implements OnClickListener
                             final Message message) throws MessagingException
     {
         String subjectText = message.getSubject();
-        String fromText = Address.toFriendly(message.getFrom());
+        String fromText = Address.toFriendly(message.getFrom(), mContacts);
         String dateText = getDateFormat().format(message.getSentDate());
         String timeText = getTimeFormat().format(message.getSentDate());
-        String toText = Address.toFriendly(message.getRecipients(RecipientType.TO));
-        String ccText = Address.toFriendly(message.getRecipients(RecipientType.CC));
+        String toText = Address.toFriendly(message.getRecipients(RecipientType.TO), mContacts);
+        String ccText = Address.toFriendly(message.getRecipients(RecipientType.CC), mContacts);
 
         int color = mAccount.getChipColor();
         boolean hasAttachments = ((LocalMessage) message).getAttachmentCount() > 0;

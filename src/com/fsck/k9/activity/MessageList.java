@@ -59,6 +59,7 @@ import com.fsck.k9.activity.setup.Prefs;
 import com.fsck.k9.controller.MessagingController;
 import com.fsck.k9.controller.MessagingController.SORT_TYPE;
 import com.fsck.k9.controller.MessagingListener;
+import com.fsck.k9.helper.Contacts;
 import com.fsck.k9.helper.Utility;
 import com.fsck.k9.mail.Address;
 import com.fsck.k9.mail.Flag;
@@ -162,6 +163,7 @@ public class MessageList
     private MessageInfoHolder mSelectedMessage = null;
 
     private Context context = null;
+    private Contacts mContacts;
 
     class MessageListHandler
     {
@@ -439,6 +441,9 @@ public class MessageList
     {
         context=this;
         super.onCreate(savedInstanceState);
+
+        mContacts = Contacts.getInstance(this);
+
         mInflater = getLayoutInflater();
         initializeLayout();
         onNewIntent(getIntent());

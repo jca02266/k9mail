@@ -1,10 +1,13 @@
 
 package com.fsck.k9.mail;
 
+import android.database.Cursor;
 import android.text.util.Rfc822Token;
 import android.text.util.Rfc822Tokenizer;
 import android.util.Log;
+
 import com.fsck.k9.K9;
+import com.fsck.k9.helper.Contacts;
 import com.fsck.k9.helper.Utility;
 import org.apache.james.mime4j.codec.EncoderUtil;
 import org.apache.james.mime4j.field.address.AddressList;
@@ -232,9 +235,30 @@ public class Address
      */
     public String toFriendly()
     {
+        return toFriendly((Contacts)null);
+    }
+
+    public String toFriendly(Contacts contacts)
+    {
+        if (contacts != null) {
+            Cursor cursor = contacts.searchByAddress(mAddress);
+            if (cursor != null) {
+                try {
+                    if (cursor.getCount() > 0) {
+                        cursor.moveToFirst();
+                        return contacts.getName(cursor);
+                    }
+                }
+                finally {
+                    Log.i(K9.LOG_TAG, "cursor closed");
+                    cursor.close();
+                }
+            }
+        }
+
         if (mPersonal != null && mPersonal.length() > 0)
         {
-            return  mPersonal;
+            return mPersonal;
         }
         else
         {
@@ -244,6 +268,11 @@ public class Address
 
     public static String toFriendly(Address[] addresses)
     {
+        return toFriendly(addresses, null);
+    }
+
+    public static String toFriendly(Address[] addresses, Contacts contacts)
+    {
         if (addresses == null)
         {
             return null;
@@ -251,7 +280,7 @@ public class Address
         StringBuffer sb = new StringBuffer();
         for (int i = 0; i < addresses.length; i++)
         {
-            sb.append(addresses[i].toFriendly());
+            sb.append(addresses[i].toFriendly(contacts));
             if (i < addresses.length - 1)
             {
                 sb.append(',');
