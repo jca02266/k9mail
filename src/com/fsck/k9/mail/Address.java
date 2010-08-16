@@ -17,7 +17,11 @@ import org.apache.james.mime4j.field.address.NamedMailbox;
 import org.apache.james.mime4j.field.address.parser.ParseException;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class Address
 {
@@ -26,6 +30,8 @@ public class Address
      * Immutable empty {@link Address} array
      */
     private static final Address[] EMPTY_ADDRESS_ARRAY = new Address[0];
+    private static Map<String,String> sContactsName = new ConcurrentHashMap<String, String>();
+    private static final String NO_ENTRY = "";
 
     String mAddress;
 
@@ -241,12 +247,23 @@ public class Address
     public String toFriendly(Contacts contacts)
     {
         if (contacts != null) {
-            Cursor cursor = contacts.searchByAddress(mAddress);
-            if (cursor != null) {
-                try {
-                    if (cursor.getCount() > 0) {
-                        cursor.moveToFirst();
-                        return contacts.getName(cursor);
+            String name = sContactsName.get(mAddress);
+            if (name != null && name != NO_ENTRY) {
+                return name;
+            }
+            if (name == null) {
+                Cursor cursor = contacts.searchByAddress(mAddress);
+                if (cursor != null) {
+                    try {
+                        if (cursor.getCount() > 0) {
+                            cursor.moveToFirst();
+                            name = contacts.getName(cursor);
+                            sContactsName.put(mAddress, name);
+                            return name;
+                        }
+                    }
+                    finally {
+                        cursor.close();
                     }
                 }
                 finally {
