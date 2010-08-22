@@ -2,6 +2,8 @@
 package com.fsck.k9.mail;
 
 import android.database.Cursor;
+import android.text.Html;
+import android.text.SpannableStringBuilder;
 import android.text.util.Rfc822Token;
 import android.text.util.Rfc822Tokenizer;
 import android.util.Log;
@@ -239,17 +241,17 @@ public class Address
      * is not available.
      * @return
      */
-    public String toFriendly()
+    public CharSequence toFriendly()
     {
         return toFriendly((Contacts)null);
     }
 
-    public String toFriendly(Contacts contacts)
+    public CharSequence toFriendly(Contacts contacts)
     {
         if (contacts != null) {
             String name = sContactsName.get(mAddress);
             if (name != null && name != NO_ENTRY) {
-                return name;
+                return Html.fromHtml("<font color=\"Blue\">" + name + "</font>"); // TODO: use setSpan
             }
             if (name == null) {
                 Cursor cursor = contacts.searchByAddress(mAddress);
@@ -259,16 +261,16 @@ public class Address
                             cursor.moveToFirst();
                             name = contacts.getName(cursor);
                             sContactsName.put(mAddress, name);
-                            return name;
+                            return Html.fromHtml("<font color=\"Blue\">" + name + "</font>"); // TODO: use setSpan
+                        }
+                        else {
+                            sContactsName.put(mAddress, NO_ENTRY);
                         }
                     }
                     finally {
-                        cursor.close();
+                        Log.i(K9.LOG_TAG, "cursor closed");
+                        // cursor.close(); // TODO: should close cursor.
                     }
-                }
-                finally {
-                    Log.i(K9.LOG_TAG, "cursor closed");
-                    cursor.close();
                 }
             }
         }
@@ -283,18 +285,18 @@ public class Address
         }
     }
 
-    public static String toFriendly(Address[] addresses)
+    public static CharSequence toFriendly(Address[] addresses)
     {
         return toFriendly(addresses, null);
     }
 
-    public static String toFriendly(Address[] addresses, Contacts contacts)
+    public static CharSequence toFriendly(Address[] addresses, Contacts contacts)
     {
         if (addresses == null)
         {
             return null;
         }
-        StringBuffer sb = new StringBuffer();
+        SpannableStringBuilder sb = new SpannableStringBuilder();
         for (int i = 0; i < addresses.length; i++)
         {
             sb.append(addresses[i].toFriendly(contacts));
@@ -303,7 +305,7 @@ public class Address
                 sb.append(',');
             }
         }
-        return sb.toString();
+        return sb;
     }
 
     /**
