@@ -166,7 +166,6 @@ public class MessageList
     private MessageInfoHolder mSelectedMessage = null;
 
     private Context context = null;
-    private Contacts mContacts;
 
     class MessageListHandler
     {
@@ -444,8 +443,6 @@ public class MessageList
     {
         context=this;
         super.onCreate(savedInstanceState);
-
-        mContacts = Contacts.getInstance(this);
 
         mInflater = getLayoutInflater();
         initializeLayout();
