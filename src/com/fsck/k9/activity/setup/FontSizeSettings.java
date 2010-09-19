@@ -127,7 +127,7 @@ public class FontSizeSettings extends K9PreferenceActivity
         fontSizes.setMessageViewTime(Integer.parseInt(mMessageViewTime.getValue()));
         fontSizes.setMessageViewDate(Integer.parseInt(mMessageViewDate.getValue()));
         fontSizes.setMessageViewContent(Integer.parseInt(mMessageViewContent.getValue()));
-        fontSizes.setRegisteredNameColor(Long.decode(mRegisteredNameColor.getValue()));
+        fontSizes.setRegisteredNameColor((int)(long)Long.decode(mRegisteredNameColor.getValue()));
 
         SharedPreferences preferences = Preferences.getPreferences(this).getPreferences();
         Editor editor = preferences.edit();

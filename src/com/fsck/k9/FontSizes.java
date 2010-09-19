@@ -125,7 +125,7 @@ public class FontSizes
      *
      * Note: The unit is WebSettings.TextSize
      */
-    private long registeredNameColor;
+    private int registeredNameColor;
 
     /**
      * Create a <code>FontSizes</code> object with default values.
@@ -209,7 +209,7 @@ public class FontSizes
         messageViewDate = prefs.getInt(MESSAGE_VIEW_DATE, messageViewDate);
         setMessageViewContent(prefs.getInt(MESSAGE_VIEW_CONTENT, 3));
 
-        registeredNameColor = Long.decode(prefs.getString(REGISTERED_NAME_COLOR, "0xff0000ff")); // Color.BLUE
+        registeredNameColor = (int)(long)Long.decode(prefs.getString(REGISTERED_NAME_COLOR, "0xff0000ff")); // Color.BLUE
     }
 
     public int getAccountName()
@@ -397,11 +397,11 @@ public class FontSizes
         }
     }
 
-    public long getRegisteredNameColor() {
+    public int getRegisteredNameColor() {
         return registeredNameColor;
     }
 
-    public void setRegisteredNameColor(long registeredNameColor) {
+    public void setRegisteredNameColor(int registeredNameColor) {
         this.registeredNameColor = registeredNameColor;
     }
 }
