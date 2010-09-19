@@ -34,7 +34,7 @@ public class Prefs extends K9PreferenceActivity
 
     private static final String PREFERENCE_LANGUAGE = "language";
     private static final String PREFERENCE_THEME = "theme";
-    private static final String PREFERENCE_FONT_SIZE = "font_size";
+    private static final String PREFERENCE_FONT = "font";
     private static final String PREFERENCE_DATE_FORMAT = "dateFormat";
     private static final String PREFERENCE_BACKGROUND_OPS = "background_ops";
     private static final String PREFERENCE_DEBUG_LOGGING = "debug_logging";
@@ -147,7 +147,7 @@ public class Prefs extends K9PreferenceActivity
             }
         });
 
-        findPreference(PREFERENCE_FONT_SIZE).setOnPreferenceClickListener(
+        findPreference(PREFERENCE_FONT).setOnPreferenceClickListener(
             new Preference.OnPreferenceClickListener()
         {
             public boolean onPreferenceClick(Preference preference)

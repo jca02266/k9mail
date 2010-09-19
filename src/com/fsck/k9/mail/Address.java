@@ -252,10 +252,10 @@ public class Address
      */
     public CharSequence toFriendly()
     {
-        return toFriendly((Contacts)null);
+        return toFriendly((Contacts)null, 0);
     }
 
-    public CharSequence toFriendly(Contacts contacts)
+    public CharSequence toFriendly(Contacts contacts, long registered_name_color)
     {
         if (contacts != null)
         {
@@ -264,7 +264,7 @@ public class Address
             if (name != null && name != NO_ENTRY)
             {
                 SpannableString sname = new SpannableString(name);
-                sname.setSpan(new ForegroundColorSpan(Color.BLUE),
+                sname.setSpan(new ForegroundColorSpan((int)registered_name_color), // TODO: should not cast
                         0,
                         sname.length(),
                         Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
@@ -285,7 +285,7 @@ public class Address
                             sContactsName.put(mAddress, name);
 
                             SpannableString sname = new SpannableString(name);
-                            sname.setSpan(new ForegroundColorSpan(Color.BLUE),
+                            sname.setSpan(new ForegroundColorSpan((int)registered_name_color), // TODO: should not cast
                                     0,
                                     sname.length(),
                                     Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
@@ -317,10 +317,10 @@ public class Address
 
     public static CharSequence toFriendly(Address[] addresses)
     {
-        return toFriendly(addresses, null);
+        return toFriendly(addresses, null, 0);
     }
 
-    public static CharSequence toFriendly(Address[] addresses, Contacts contacts)
+    public static CharSequence toFriendly(Address[] addresses, Contacts contacts, long registered_name_color)
     {
         if (addresses == null)
         {
@@ -329,7 +329,7 @@ public class Address
         SpannableStringBuilder sb = new SpannableStringBuilder();
         for (int i = 0; i < addresses.length; i++)
         {
-            sb.append(addresses[i].toFriendly(contacts));
+            sb.append(addresses[i].toFriendly(contacts, registered_name_color));
             if (i < addresses.length - 1)
             {
                 sb.append(',');

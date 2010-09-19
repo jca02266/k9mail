@@ -561,6 +561,20 @@
         <item>5</item>
     </string-array>
 
+    <string-array name="font_color_entries">
+      <item>Blue</item>
+      <item>Red</item>
+      <item>Black</item>
+      <item>White</item>
+    </string-array>
+
+    <string-array name="font_color_values">
+      <item>0xff0000ff</item>
+      <item>0xffff0000</item>
+      <item>0xff000000</item>
+      <item>0xffffffff</item>
+    </string-array>
+
     <string-array name="idle_refresh_period_entries">
         <item>@string/idle_refresh_period_1min</item>
         <item>@string/idle_refresh_period_2min</item>

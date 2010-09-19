@@ -123,4 +123,15 @@
 
     </PreferenceCategory>
 
+    <PreferenceCategory android:title="@string/font_color_message_list_and_view" android:key="registered_name_fonts">
+
+        <ListPreference
+            android:key="registered_name_color"
+            android:title="@string/font_color_registered_name"
+            android:entries="@array/font_color_entries"
+            android:entryValues="@array/font_color_values"
+            android:dialogTitle="@string/font_color_registered_name" />
+
+    </PreferenceCategory>
+
 </PreferenceScreen>

@@ -33,10 +33,10 @@
             android:dialogTitle="@string/settings_theme_label" />
 
         <Preference
-            android:key="font_size"
+            android:key="font"
             android:singleLine="true"
-            android:title="@string/font_size_settings_title"
-            android:summary="@string/font_size_settings_description" />
+            android:title="@string/font_settings_title"
+            android:summary="@string/font_settings_description" />
 
         <ListPreference
             android:key="dateFormat"

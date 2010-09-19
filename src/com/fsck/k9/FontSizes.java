@@ -1,6 +1,7 @@
 package com.fsck.k9;
 
 import android.content.SharedPreferences;
+import android.graphics.Color;
 import android.webkit.WebSettings.TextSize;
 
 /**
@@ -28,6 +29,8 @@ public class FontSizes
     private static final String MESSAGE_VIEW_DATE = "fontSizeMessageViewDate";
     private static final String MESSAGE_VIEW_CONTENT = "fontSizeMessageViewContent";
 
+    // color
+    private static final String REGISTERED_NAME_COLOR = "fontColorRegisteredName";
     /*
      * Values for the font sizes in DIP (device independent pixel)
      */
@@ -118,6 +121,13 @@ public class FontSizes
     private TextSize messageViewContent = TextSize.NORMAL;
 
     /**
+     * Font color of the registered name in the Contacts in the message list and view activity.
+     *
+     * Note: The unit is WebSettings.TextSize
+     */
+    private long registeredNameColor;
+
+    /**
      * Create a <code>FontSizes</code> object with default values.
      */
     public FontSizes()
@@ -139,6 +149,9 @@ public class FontSizes
         messageViewSubject = FONT_12DIP;
         messageViewTime = FONT_10DIP;
         messageViewDate = FONT_10DIP;
+
+        // color
+        registeredNameColor = Color.BLUE;
     }
 
     /**
@@ -166,6 +179,8 @@ public class FontSizes
         editor.putInt(MESSAGE_VIEW_TIME, messageViewTime);
         editor.putInt(MESSAGE_VIEW_DATE, messageViewDate);
         editor.putInt(MESSAGE_VIEW_CONTENT, getMessageViewContentAsInt());
+
+        editor.putString(REGISTERED_NAME_COLOR, String.format("%#010x", registeredNameColor));
     }
 
     /**
@@ -193,6 +208,8 @@ public class FontSizes
         messageViewTime = prefs.getInt(MESSAGE_VIEW_TIME, messageViewTime);
         messageViewDate = prefs.getInt(MESSAGE_VIEW_DATE, messageViewDate);
         setMessageViewContent(prefs.getInt(MESSAGE_VIEW_CONTENT, 3));
+
+        registeredNameColor = Long.decode(prefs.getString(REGISTERED_NAME_COLOR, "0xff0000ff")); // Color.BLUE
     }
 
     public int getAccountName()
@@ -378,5 +395,13 @@ public class FontSizes
                 messageViewContent = TextSize.LARGEST;
                 break;
         }
+    }
+
+    public long getRegisteredNameColor() {
+        return registeredNameColor;
+    }
+
+    public void setRegisteredNameColor(long registeredNameColor) {
+        this.registeredNameColor = registeredNameColor;
     }
 }
