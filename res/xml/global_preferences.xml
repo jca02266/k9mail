@@ -126,6 +126,11 @@
     <PreferenceCategory android:title="@string/messageview_preferences" android:key="messageview_preferences">
 
         <CheckBoxPreference
+            android:key="messageview_display_registered_name"
+            android:title="@string/global_settings_messageview_display_registered_name_label"
+            android:summary="@string/global_settings_messageview_display_registered_name_summary" />
+
+        <CheckBoxPreference
             android:key="messageview_fixedwidth_font"
             android:title="@string/global_settings_messageview_fixedwidth_label"
             android:summary="@string/global_settings_messageview_fixedwidth_summary" />

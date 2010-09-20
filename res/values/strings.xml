@@ -314,6 +314,8 @@ Welcome to K-9 Mail setup.  K-9 is an open source mail client for Android origin
     <string name="global_settings_touchable_label">Touch-friendly view</string>
     <string name="global_settings_touchable_summary">Roomier list items with message previews</string>
 
+    <string name="global_settings_messageview_display_registered_name_label">Display registered name</string>
+    <string name="global_settings_messageview_display_registered_name_summary">display registered name instead of raw address</string>
     <string name="global_settings_messageview_fixedwidth_label">Fixed-width fonts</string>
     <string name="global_settings_messageview_fixedwidth_summary">Use a fixed-width font when showing plain-text messages</string>
     <string name="global_settings_messageview_return_to_list_label">Return to list after delete</string>

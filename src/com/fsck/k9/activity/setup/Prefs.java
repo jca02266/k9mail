@@ -49,6 +49,7 @@ public class Prefs extends K9PreferenceActivity
     private static final String PREFERENCE_MESSAGELIST_CHECKBOXES = "messagelist_checkboxes";
     private static final String PREFERENCE_MESSAGELIST_TOUCHABLE = "messagelist_touchable";
 
+    private static final String PREFERENCE_MESSAGEVIEW_DISPLAY_REGISTERED_NAME = "messageview_display_registered_name";
     private static final String PREFERENCE_MESSAGEVIEW_FIXEDWIDTH = "messageview_fixedwidth_font";
     private static final String PREFERENCE_MESSAGEVIEW_RETURN_TO_LIST = "messageview_return_to_list";
 
@@ -75,6 +76,7 @@ public class Prefs extends K9PreferenceActivity
     private CheckBoxPreference mCheckboxes;
     private CheckBoxPreference mTouchable;
 
+    private CheckBoxPreference mDisplayRegisteredName;
     private CheckBoxPreference mFixedWidth;
     private CheckBoxPreference mReturnToList;
 
@@ -230,6 +232,9 @@ public class Prefs extends K9PreferenceActivity
         mTouchable = (CheckBoxPreference)findPreference(PREFERENCE_MESSAGELIST_TOUCHABLE);
         mTouchable.setChecked(K9.messageListTouchable());
 
+        mDisplayRegisteredName = (CheckBoxPreference)findPreference(PREFERENCE_MESSAGEVIEW_DISPLAY_REGISTERED_NAME);
+        mDisplayRegisteredName.setChecked(K9.messageViewDisplayRegisteredName());
+
         mFixedWidth = (CheckBoxPreference)findPreference(PREFERENCE_MESSAGEVIEW_FIXEDWIDTH);
         mFixedWidth.setChecked(K9.messageViewFixedWidthFont());
 
@@ -283,6 +288,7 @@ public class Prefs extends K9PreferenceActivity
         K9.setMessageListCheckboxes(mCheckboxes.isChecked());
         K9.setMessageListTouchable(mTouchable.isChecked());
 
+        K9.setMessageViewDisplayRegisteredName(mDisplayRegisteredName.isChecked());
         K9.setMessageViewFixedWidthFont(mFixedWidth.isChecked());
         K9.setMessageViewReturnToList(mReturnToList.isChecked());
 

@@ -257,7 +257,7 @@ public class Address
 
     public CharSequence toFriendly(Contacts contacts, int registered_name_color)
     {
-        if (contacts != null)
+        if (contacts != null && K9.messageViewDisplayRegisteredName())
         {
             String name = sContactsName.get(mAddress);
 
