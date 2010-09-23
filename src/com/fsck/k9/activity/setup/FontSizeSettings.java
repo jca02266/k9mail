@@ -7,7 +7,6 @@ import android.content.SharedPreferences;
 import android.content.SharedPreferences.Editor;
 import android.os.Bundle;
 import android.preference.*;
-import android.util.Log;
 import android.view.KeyEvent;
 import com.fsck.k9.*;
 import com.fsck.k9.activity.K9PreferenceActivity;
@@ -39,9 +38,6 @@ public class FontSizeSettings extends K9PreferenceActivity
     private static final String PREFERENCE_MESSAGE_VIEW_DATE_FONT = "message_view_date_font";
     private static final String PREFERENCE_MESSAGE_VIEW_CONTENT_FONT = "message_view_content_font";
 
-    // color
-    private static final String PREFERENCE_REGISTERED_NAME_COLOR = "registered_name_color";
-
     private ListPreference mAccountName;
     private ListPreference mAccountDescription;
     private ListPreference mFolderName;
@@ -57,7 +53,6 @@ public class FontSizeSettings extends K9PreferenceActivity
     private ListPreference mMessageViewTime;
     private ListPreference mMessageViewDate;
     private ListPreference mMessageViewContent;
-    private ListPreference mRegisteredNameColor;
 
 
     /**
@@ -97,8 +92,6 @@ public class FontSizeSettings extends K9PreferenceActivity
         mMessageViewTime = initializeListPreference(PREFERENCE_MESSAGE_VIEW_TIME_FONT, fontSizes.getMessageViewTime());
         mMessageViewDate = initializeListPreference(PREFERENCE_MESSAGE_VIEW_DATE_FONT, fontSizes.getMessageViewDate());
         mMessageViewContent = initializeListPreference(PREFERENCE_MESSAGE_VIEW_CONTENT_FONT, fontSizes.getMessageViewContentAsInt());
-
-        mRegisteredNameColor = initializeListPreference(PREFERENCE_REGISTERED_NAME_COLOR, fontSizes.getRegisteredNameColor());
     }
 
     /**
@@ -127,7 +120,6 @@ public class FontSizeSettings extends K9PreferenceActivity
         fontSizes.setMessageViewTime(Integer.parseInt(mMessageViewTime.getValue()));
         fontSizes.setMessageViewDate(Integer.parseInt(mMessageViewDate.getValue()));
         fontSizes.setMessageViewContent(Integer.parseInt(mMessageViewContent.getValue()));
-        fontSizes.setRegisteredNameColor((int)(long)Long.decode(mRegisteredNameColor.getValue()));
 
         SharedPreferences preferences = Preferences.getPreferences(this).getPreferences();
         Editor editor = preferences.edit();
@@ -156,15 +148,6 @@ public class FontSizeSettings extends K9PreferenceActivity
     {
         ListPreference prefView = (ListPreference) findPreference(key);
         prefView.setValue(Integer.toString(value));
-        prefView.setSummary(prefView.getEntry());
-        prefView.setOnPreferenceChangeListener(new PreferenceChangeListener(prefView));
-        return prefView;
-    }
-
-    private ListPreference initializeListPreference(String key, long value)
-    {
-        ListPreference prefView = (ListPreference) findPreference(key);
-        prefView.setValue(String.format("%#010x", value));
         prefView.setSummary(prefView.getEntry());
         prefView.setOnPreferenceChangeListener(new PreferenceChangeListener(prefView));
         return prefView;

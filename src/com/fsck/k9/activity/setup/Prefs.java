@@ -19,6 +19,7 @@ import com.fsck.k9.K9;
 import com.fsck.k9.Preferences;
 import com.fsck.k9.R;
 import com.fsck.k9.activity.Accounts;
+import com.fsck.k9.activity.ColorPickerDialog;
 import com.fsck.k9.activity.DateFormatter;
 import com.fsck.k9.activity.K9PreferenceActivity;
 import com.fsck.k9.preferences.CheckboxListPreference;
@@ -34,7 +35,7 @@ public class Prefs extends K9PreferenceActivity
 
     private static final String PREFERENCE_LANGUAGE = "language";
     private static final String PREFERENCE_THEME = "theme";
-    private static final String PREFERENCE_FONT = "font";
+    private static final String PREFERENCE_FONT_SIZE = "font_size";
     private static final String PREFERENCE_DATE_FORMAT = "dateFormat";
     private static final String PREFERENCE_BACKGROUND_OPS = "background_ops";
     private static final String PREFERENCE_DEBUG_LOGGING = "debug_logging";
@@ -50,6 +51,7 @@ public class Prefs extends K9PreferenceActivity
     private static final String PREFERENCE_MESSAGELIST_TOUCHABLE = "messagelist_touchable";
 
     private static final String PREFERENCE_MESSAGEVIEW_DISPLAY_REGISTERED_NAME = "messageview_display_registered_name";
+    private static final String PREFERENCE_MESSAGEVIEW_DISPLAY_REGISTERED_NAME_COLOR = "registered_name_color";
     private static final String PREFERENCE_MESSAGEVIEW_FIXEDWIDTH = "messageview_fixedwidth_font";
     private static final String PREFERENCE_MESSAGEVIEW_RETURN_TO_LIST = "messageview_return_to_list";
 
@@ -77,6 +79,7 @@ public class Prefs extends K9PreferenceActivity
     private CheckBoxPreference mTouchable;
 
     private CheckBoxPreference mDisplayRegisteredName;
+    private Preference mDisplayRegisteredNameColor;
     private CheckBoxPreference mFixedWidth;
     private CheckBoxPreference mReturnToList;
 
@@ -149,7 +152,7 @@ public class Prefs extends K9PreferenceActivity
             }
         });
 
-        findPreference(PREFERENCE_FONT).setOnPreferenceClickListener(
+        findPreference(PREFERENCE_FONT_SIZE).setOnPreferenceClickListener(
             new Preference.OnPreferenceClickListener()
         {
             public boolean onPreferenceClick(Preference preference)
@@ -234,6 +237,18 @@ public class Prefs extends K9PreferenceActivity
 
         mDisplayRegisteredName = (CheckBoxPreference)findPreference(PREFERENCE_MESSAGEVIEW_DISPLAY_REGISTERED_NAME);
         mDisplayRegisteredName.setChecked(K9.messageViewDisplayRegisteredName());
+
+        mDisplayRegisteredNameColor = (Preference)findPreference(PREFERENCE_MESSAGEVIEW_DISPLAY_REGISTERED_NAME_COLOR);
+        mDisplayRegisteredNameColor.setOnPreferenceClickListener(
+            new Preference.OnPreferenceClickListener()
+        {
+            public boolean onPreferenceClick(Preference preference)
+            {
+                onChooseRegisteredNameColor();
+                return false;
+            }
+        }
+        );
 
         mFixedWidth = (CheckBoxPreference)findPreference(PREFERENCE_MESSAGEVIEW_FIXEDWIDTH);
         mFixedWidth.setChecked(K9.messageViewFixedWidthFont());
@@ -332,4 +347,15 @@ public class Prefs extends K9PreferenceActivity
         FontSizeSettings.actionEditSettings(this);
     }
 
+    public void onChooseRegisteredNameColor()
+    {
+        new ColorPickerDialog(this, new ColorPickerDialog.OnColorChangedListener()
+        {
+            public void colorChanged(int color)
+            {
+                K9.setRegisteredNameColor(color);
+            }
+        },
+        K9.getRegisteredNameColor()).show();
+    }
 }

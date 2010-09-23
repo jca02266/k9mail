@@ -9,7 +9,6 @@ import android.util.Config;
 import android.util.Log;
 
 import com.fsck.k9.Account;
-import com.fsck.k9.FontSizes;
 import com.fsck.k9.K9;
 import com.fsck.k9.R;
 import com.fsck.k9.activity.FolderInfoHolder;
@@ -56,8 +55,6 @@ public class MessageInfoHolder implements Comparable<MessageInfoHolder>
     private boolean sortAscending = true;
     private boolean sortDateAscending = false;
     private MessagingController mController;
-
-    private FontSizes mFontSizes = K9.getFontSizes();
 
     // Empty constructor for comparison
     public MessageInfoHolder()
@@ -142,13 +139,13 @@ public class MessageInfoHolder implements Comparable<MessageInfoHolder>
 
             if (addrs.length > 0 &&  account.isAnIdentity(addrs[0]))
             {
-                CharSequence to = Address.toFriendly(message .getRecipients(RecipientType.TO), mContacts, mFontSizes.getRegisteredNameColor());
+                CharSequence to = Address.toFriendly(message .getRecipients(RecipientType.TO), mContacts);
                 this.compareCounterparty = to.toString();
                 this.sender = new SpannableStringBuilder(context.getString(R.string.message_list_to_fmt)).append(to);
             }
             else
             {
-                this.sender = Address.toFriendly(addrs, mContacts, mFontSizes.getRegisteredNameColor());
+                this.sender = Address.toFriendly(addrs, mContacts);
                 this.compareCounterparty = this.sender.toString();
             }
 

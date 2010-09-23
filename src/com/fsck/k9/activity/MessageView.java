@@ -2170,11 +2170,11 @@ public class MessageView extends K9Activity implements OnClickListener
                             final Message message) throws MessagingException
     {
         String subjectText = message.getSubject();
-        CharSequence fromText = Address.toFriendly(message.getFrom(), mContacts, mFontSizes.getRegisteredNameColor());
+        CharSequence fromText = Address.toFriendly(message.getFrom(), mContacts);
         String dateText = getDateFormat().format(message.getSentDate());
         String timeText = getTimeFormat().format(message.getSentDate());
-        CharSequence toText = Address.toFriendly(message.getRecipients(RecipientType.TO), mContacts, mFontSizes.getRegisteredNameColor());
-        CharSequence ccText = Address.toFriendly(message.getRecipients(RecipientType.CC), mContacts, mFontSizes.getRegisteredNameColor());
+        CharSequence toText = Address.toFriendly(message.getRecipients(RecipientType.TO), mContacts);
+        CharSequence ccText = Address.toFriendly(message.getRecipients(RecipientType.CC), mContacts);
 
         int color = mAccount.getChipColor();
         boolean hasAttachments = ((LocalMessage) message).getAttachmentCount() > 0;

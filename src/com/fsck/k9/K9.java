@@ -114,6 +114,7 @@ public class K9 extends Application
     private static boolean mMessageListTouchable = false;
 
     private static boolean mMessageViewDisplayRegisteredName = true;
+    private static int mRegisteredNameColor = 0xff00008f;
     private static boolean mMessageViewFixedWidthFont = false;
     private static boolean mMessageViewReturnToList = false;
 
@@ -623,6 +624,14 @@ public class K9 extends Application
     public static void setMessageViewDisplayRegisteredName(boolean checkboxes)
     {
         mMessageViewDisplayRegisteredName = checkboxes;
+    }
+
+    public static int getRegisteredNameColor() {
+        return mRegisteredNameColor;
+    }
+
+    public static void setRegisteredNameColor(int registeredNameColor) {
+        mRegisteredNameColor = registeredNameColor;
     }
 
     public static boolean messageViewFixedWidthFont()
