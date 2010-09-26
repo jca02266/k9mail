@@ -113,7 +113,7 @@ public class K9 extends Application
     private static boolean mMessageListCheckboxes = false;
     private static boolean mMessageListTouchable = false;
 
-    private static boolean mMessageViewDisplayRegisteredName = true;
+    private static boolean mChangeRegisteredNameColor = false;
     private static int mRegisteredNameColor = 0xff00008f;
     private static boolean mMessageViewFixedWidthFont = false;
     private static boolean mMessageViewReturnToList = false;
@@ -352,7 +352,9 @@ public class K9 extends Application
         editor.putBoolean("messageListCheckboxes",mMessageListCheckboxes);
         editor.putBoolean("messageListTouchable",mMessageListTouchable);
 
-        editor.putBoolean("messageViewDisplayRegisteredName",mMessageViewDisplayRegisteredName);
+
+        editor.putBoolean("changeRegisteredNameColor",mChangeRegisteredNameColor);
+        editor.putInt("registeredNameColor",mRegisteredNameColor);
         editor.putBoolean("messageViewFixedWidthFont",mMessageViewFixedWidthFont);
         editor.putBoolean("messageViewReturnToList", mMessageViewReturnToList);
 
@@ -391,7 +393,8 @@ public class K9 extends Application
         mMessageListCheckboxes = sprefs.getBoolean("messageListCheckboxes",false);
         mMessageListTouchable = sprefs.getBoolean("messageListTouchable",false);
 
-        mMessageViewDisplayRegisteredName = sprefs.getBoolean("messageViewDisplayRegisteredName", true);
+        mChangeRegisteredNameColor = sprefs.getBoolean("changeRegisteredNameColor", false);
+        mRegisteredNameColor = sprefs.getInt("registeredNameColor", 0xff00008f);
         mMessageViewFixedWidthFont = sprefs.getBoolean("messageViewFixedWidthFont", false);
         mMessageViewReturnToList = sprefs.getBoolean("messageViewReturnToList", false);
 
@@ -615,15 +618,14 @@ public class K9 extends Application
         mMessageListCheckboxes = checkboxes;
     }
 
-
-    public static boolean messageViewDisplayRegisteredName()
+    public static boolean changeRegisteredNameColor()
     {
-        return mMessageViewDisplayRegisteredName;
+        return mChangeRegisteredNameColor;
     }
 
-    public static void setMessageViewDisplayRegisteredName(boolean checkboxes)
+    public static void setChangeRegisteredNameColor(boolean checkboxes)
     {
-        mMessageViewDisplayRegisteredName = checkboxes;
+        mChangeRegisteredNameColor = checkboxes;
     }
 
     public static int getRegisteredNameColor() {

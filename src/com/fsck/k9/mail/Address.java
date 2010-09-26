@@ -257,19 +257,24 @@ public class Address
 
     public CharSequence toFriendly(Contacts contacts)
     {
-        if (contacts != null && K9.messageViewDisplayRegisteredName())
+        if (contacts != null)
         {
             String name = sContactsName.get(mAddress);
 
             if (name != null && name != NO_ENTRY)
             {
-                SpannableString sname = new SpannableString(name);
-                sname.setSpan(new ForegroundColorSpan(K9.getRegisteredNameColor()),
-                        0,
-                        sname.length(),
-                        Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
-                       );
-                return sname;
+                if (K9.changeRegisteredNameColor()) {
+                    SpannableString sname = new SpannableString(name);
+                    sname.setSpan(new ForegroundColorSpan(K9.getRegisteredNameColor()),
+                                  0,
+                                  sname.length(),
+                                  Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                                  );
+                    return sname;
+                }
+                else {
+                    return name;
+                }
             }
             if (name == null)
             {
@@ -285,13 +290,18 @@ public class Address
                             if (name != null) {
                                 sContactsName.put(mAddress, name);
 
-                                SpannableString sname = new SpannableString(name);
-                                sname.setSpan(new ForegroundColorSpan(K9.getRegisteredNameColor()),
-                                              0,
-                                              sname.length(),
-                                              Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
-                                              );
-                                return sname;
+                                if (K9.changeRegisteredNameColor()) {
+                                    SpannableString sname = new SpannableString(name);
+                                    sname.setSpan(new ForegroundColorSpan(K9.getRegisteredNameColor()),
+                                                  0,
+                                                  sname.length(),
+                                                  Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                                                  );
+                                    return sname;
+                                }
+                                else {
+                                    return name;
+                                }
                             }
                         }
                         else
