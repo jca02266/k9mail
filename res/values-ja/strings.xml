@@ -10,10 +10,10 @@
 
     <string name="read_attachment_label">添付ファイルを開く</string>
     <string name="read_attachment_desc">このアプリケーションでは電子メールの添付ファイルを読むことができます</string>
-    <string name="read_messages_label">read Emails</string>
-    <string name="read_messages_desc">Allows this application to read your Emails.</string>
-    <string name="delete_messages_label">Delete Emails</string>
-    <string name="delete_messages_desc">Allows this application to delete your Emails.</string>
+    <string name="read_messages_label">メールを読む</string>
+    <string name="read_messages_desc">このアプリケーションがメールを読むことを許可する</string>
+    <string name="delete_messages_label">メールを削除</string>
+    <string name="delete_messages_desc">このアプリケーションがメールを削除することを許可する</string>
 
     <string name="about_title_fmt">About <xliff:g id="app_name">%s</xliff:g></string>
     <string name="accounts_title">アカウント一覧</string>
@@ -310,29 +310,29 @@ K-9 Mail セットアップにようこそ。\nK-9 はオープンソースで�
     <string name="global_settings_flag_summary">スターが印を付けたメッセージを示す</string>
     <string name="global_settings_checkbox_label">複数選択チェックボックス</string>
     <string name="global_settings_checkbox_summary">複数選択チェックボックス常時表示</string>
-    <string name="global_settings_touchable_label">Message previews</string>
+    <string name="global_settings_touchable_label">メッセージプレビュー</string>
     <string name="global_settings_touchable_summary">メッセージ一覧にプレビューを追加</string>
 
-    <string name="global_settings_show_contact_name_label">Show contact names</string>
-    <string name="global_settings_show_contact_name_summary">Use recipient names from Contacts when available</string>
-    <string name="global_settings_registered_name_color_label">Colorize contacts</string>
-    <string name="global_settings_registered_name_color_default">Don\'t colorize names in your contact list</string>
-    <string name="global_settings_registered_name_color_changed">Colorize names in your contact list</string>
+    <string name="global_settings_show_contact_name_label">連絡先の名前を表示</string>
+    <string name="global_settings_show_contact_name_summary">可能なら宛先に連絡先の名前を利用する</string>
+    <string name="global_settings_registered_name_color_label">連絡先の名前に色を付ける</string>
+    <string name="global_settings_registered_name_color_default">連絡先の名前の場合も色を付けない</string>
+    <string name="global_settings_registered_name_color_changed">連絡先の名前の場合は色を付ける</string>
 
     <string name="global_settings_messageview_fixedwidth_label">固定幅フォント</string>
     <string name="global_settings_messageview_fixedwidth_summary">プレーンテキストメッセージを表示する際、固定幅フォントを利用します．</string>
     <string name="global_settings_messageview_return_to_list_label">削除後メッセージ一覧へ戻る</string>
     <string name="global_settings_messageview_return_to_list_summary">メッセージの削除後、メッセージ一覧に戻る</string>
 
-    <string name="global_settings_confirm_actions_title">Confirm actions</string>
-    <string name="global_settings_confirm_actions_summary">Show a dialog whenever you perform selected actions</string>
-    <string name="global_settings_confirm_action_archive">Archive</string>
-    <string name="global_settings_confirm_action_delete">Delete (message view only)</string>
-    <string name="global_settings_confirm_action_spam">Spam</string>
-    <string name="global_settings_confirm_action_send">Send</string>
+    <string name="global_settings_confirm_actions_title">確認</string>
+    <string name="global_settings_confirm_actions_summary">選択した動作を実行するときに常にダイアログを表示する</string>
+    <string name="global_settings_confirm_action_archive">アーカイブ</string>
+    <string name="global_settings_confirm_action_delete">削除(メッセージ表示画面のみ)</string>
+    <string name="global_settings_confirm_action_spam">迷惑メール</string>
+    <string name="global_settings_confirm_action_send">送信</string>
 
-    <string name="global_settings_privacy_mode_title">Lock-screen notifications</string>
-    <string name="global_settings_privacy_mode_summary">Don\'t display message subject in notification bar when system is locked</string>
+    <string name="global_settings_privacy_mode_title">スクリーンロック時の通知</string>
+    <string name="global_settings_privacy_mode_summary">システムがロックされているときは通知バーにメッセージの表題を表示しない</string>
 
     <string name="account_setup_basics_title">電子メールセットアップ</string>
     <string name="account_setup_basics_instructions">このアカウントで使用するメールアドレスを入力して下さい</string>
@@ -348,8 +348,8 @@ K-9 Mail セットアップにようこそ。\nK-9 はオープンソースで�
     <string name="account_setup_check_settings_retr_info_msg">アカウント情報を訂正してください\u2026</string>
     <string name="account_setup_check_settings_check_incoming_msg">受信メールサーバを確認中\u2026</string>
     <string name="account_setup_check_settings_check_outgoing_msg">送信メールサーバを確認中\u2026</string>
-    <string name="account_setup_check_settings_authenticate">Authenticating\u2026</string>
-    <string name="account_setup_check_settings_fetch">Fetching account settings\u2026</string>
+    <string name="account_setup_check_settings_authenticate">認証中\u2026</string>
+    <string name="account_setup_check_settings_fetch">アカウント設定を取得中\u2026</string>
     <string name="account_setup_check_settings_finishing_msg">終了\u2026</string>
     <string name="account_setup_check_settings_canceling_msg">中断\u2026</string>
 
@@ -531,14 +531,14 @@ K-9 Mail セットアップにようこそ。\nK-9 はオープンソースで�
     <string name="account_settings_show_pictures_only_from_contacts">連絡先に登録しているユーザからのメールのみ</string>
     <string name="account_settings_show_pictures_always">常に</string>
 
-    <string name="account_settings_composition">Sending mail</string>
+    <string name="account_settings_composition">メール送信</string>
 
-    <string name="account_settings_reply_after_quote_label">Reply after quoted text</string>
-    <string name="account_settings_reply_after_quote_summary">When replying to messages, the original message will appear above your reply.</string>
+    <string name="account_settings_reply_after_quote_label">引用テキストの後に返信を書く</string>
+    <string name="account_settings_reply_after_quote_summary">返信するときに元のメッセージを返信の上に表示</string>
 
 
-    <string name="account_settings_display_prefs_title">Display</string>
-    <string name="account_settings_sync">Fetching mail</string>
+    <string name="account_settings_display_prefs_title">表示</string>
+    <string name="account_settings_sync">メール受信</string>
     <string name="account_settings_folders">フォルダ</string>
     <string name="account_settings_message_lists">メッセージ一覧</string>
     <string name="account_settings_message_view">メッセージ表示</string>
@@ -662,8 +662,8 @@ K-9 Mail セットアップにようこそ。\nK-9 はオープンソースで�
     <string name="account_settings_vibrate_pattern_5">パターン 5</string>
     <string name="account_settings_vibrate_times">バイブレーションの繰り返し回数</string>
     <string name="account_settings_ringtone">通知音</string>
-    <string name="account_settings_led_label">Blink LED</string>
-    <string name="account_settings_led_summary">Blink LED when mail arrives</string>
+    <string name="account_settings_led_label">LEDを点滅</string>
+    <string name="account_settings_led_summary">メール着信時にLEDを点滅</string>
 
 
     <string name="account_settings_servers">サーバ設定</string>
@@ -784,19 +784,19 @@ K-9 Mail セットアップにようこそ。\nK-9 はオープンソースで�
     <string name="setting_theme_dark">白字／黒背景</string>
     <string name="setting_theme_light">黒字／白背景</string>
     <string name="display_preferences">表示設定</string>
-    <string name="global_preferences">Global</string>
+    <string name="global_preferences">グローバル設定</string>
     <string name="debug_preferences">デバッグ</string>
-    <string name="privacy_preferences">Privacy</string>
-    <string name="network_preferences">Network</string>
-    <string name="interaction_preferences">Interaction</string>
+    <string name="privacy_preferences">プライバシー</string>
+    <string name="network_preferences">ネットワーク</string>
+    <string name="interaction_preferences">インタラクション</string>
     <string name="accountlist_preferences">アカウント一覧</string>
     <string name="messagelist_preferences">メッセージ一覧</string>
     <string name="messageview_preferences">メッセージ表示</string>
     <string name="settings_theme_label">テーマ</string>
     <string name="settings_language_label">言語</string>
 
-    <string name="settings_messageview_mobile_layout_label">Single-column layout</string>
-    <string name="settings_messageview_mobile_layout_summary">Reformat HTML messages for smaller screens</string>
+    <string name="settings_messageview_mobile_layout_label">１列レイアウト</string>
+    <string name="settings_messageview_mobile_layout_summary">小さい画面用にHTMLメッセージを再構成</string>
     <string name="settings_messageview_zoom_controls_label">System zoom controls</string>
     <string name="settings_messageview_zoom_controls_summary">Enable zoom widgets or pinch-zoom if your device supports it</string>
 
@@ -850,10 +850,10 @@ K-9 Mail セットアップにようこそ。\nK-9 はオープンソースで�
     <string name="gestures_title">ジェスチャー</string>
     <string name="gestures_summary">ジェスチャー制御の許可</string>
 
-    <string name="volume_navigation_title">Volume key navigation</string>
-    <string name="volume_navigation_summary">Flip through items using the volume controls</string>
-    <string name="volume_navigation_message">Message view</string>
-    <string name="volume_navigation_list">Various list views</string>
+    <string name="volume_navigation_title">ボリュームキー操作</string>
+    <string name="volume_navigation_summary">ボリュームキーを使ってメッセージを切り替え</string>
+    <string name="volume_navigation_message">メッセージ表示</string>
+    <string name="volume_navigation_list">各種一覧表示</string>
 
     <string name="manage_back_title">\"戻る\" ボタンの制御</string>
     <string name="manage_back_summary">\"戻る\" ボタンで常に一つ前に戻る</string>
@@ -960,10 +960,10 @@ K-9 Mail セットアップにようこそ。\nK-9 はオープンソースで�
 
     <string name="select_text_now">選択したテキストをコピーします</string>
 
-    <string name="dialog_confirm_delete_title">Confirm deletion</string>
-    <string name="dialog_confirm_delete_message">Do you want to delete this message?</string>
-    <string name="dialog_confirm_delete_confirm_button">Delete</string>
-    <string name="dialog_confirm_delete_cancel_button">Do not delete</string>
+    <string name="dialog_confirm_delete_title">削除の確認</string>
+    <string name="dialog_confirm_delete_message">このメッセージを削除しますか？</string>
+    <string name="dialog_confirm_delete_confirm_button">削除する</string>
+    <string name="dialog_confirm_delete_cancel_button">削除しない</string>
 
     <string name="debug_logging_enabled">Debug logging to Android logging system enabled</string>
 
