@@ -136,5 +136,13 @@
         <incoming uri="imap+ssl+://fsck.com"  username="$user" />
         <outgoing uri="smtp+tls+://fsck.com:2525" username="$user"/>
     </provider>
-    
+    <provider id="nifty" label="Nifty" domain="nifty.com">
+        <incoming uri="pop3://pop.nifty.com" username="$email" />
+        <outgoing uri="smtp://smtp.nifty.com:587" username="$email" />
+    </provider>
+   <provider id="yahoojp" label="Yahoo Japan" domain="yahoo.co.jp"
+           note="@string/provider_note_yahoojp">
+       <incoming uri="pop3+ssl+://pop.mail.yahoo.co.jp"  username="$user" />
+       <outgoing uri="smtp://smtp.mail.yahoo.co.jp:587" username="$user" />
+   </provider>
 </providers>
