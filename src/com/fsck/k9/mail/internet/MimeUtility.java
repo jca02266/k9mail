@@ -1,6 +1,7 @@
 
 package com.fsck.k9.mail.internet;
 
+import android.os.Build.VERSION;
 import android.util.Log;
 import com.fsck.k9.K9;
 import com.fsck.k9.mail.*;
@@ -9,7 +10,6 @@ import org.apache.james.mime4j.decoder.Base64InputStream;
 import org.apache.james.mime4j.decoder.DecoderUtil;
 import org.apache.james.mime4j.decoder.QuotedPrintableInputStream;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -1029,40 +1029,15 @@ public class MimeUtility
                     /*
                      * We've got a text part, so let's see if it needs to be processed further.
                      */
-                    final String originalCharset = getHeaderParameter(part.getContentType(), "charset");
-                    String charset = "ASCII";   // No encoding, so use us-ascii, which is the standard.
-                    if ((originalCharset != null) && (!"0".equals(originalCharset)))
-                    {
-                        /*
-                         * See if there is conversion from the MIME charset to the Java one.
-                         */
-
-                        charset = Charset.forName(fixupCharset(originalCharset)).name();
-
-                        if (charset == null)
-                        {
-                            Log.e(K9.LOG_TAG,"I don't know how to deal with the charset "+originalCharset+". Falling back to US-ASCII");
-                            charset = "US-ASCII";
-                        }
-                    }
+                    String charset = getHeaderParameter(part.getContentType(), "charset");
+                    charset = fixupCharset(charset, getMessageFromPart(part));
 
                     /*
                      * Now we read the part into a buffer for further processing. Because
                      * the stream is now wrapped we'll remove any transfer encoding at this point.
                      */
                     InputStream in = part.getBody().getInputStream();
-                    ByteArrayOutputStream out = new ByteArrayOutputStream(in.available());
-                    IOUtils.copy(in, out);
-                    in.close();
-                    in = null;      // we want all of our memory back, and close might not release
-                    // Cargo culted from AOSP - This disagrees with the platform docs
-
-                    /*
-                     * Convert and return as new String
-                     */
-                    final String result = out.toString(charset);
-                    out.close();
-                    return result;
+                    return readToString(in, charset);
                 }
             }
 
@@ -1265,18 +1240,137 @@ public class MimeUtility
         return DEFAULT_ATTACHMENT_MIME_TYPE;
     }
 
-
-    private static String fixupCharset(String charset)
+    private static Message getMessageFromPart(Part part)
     {
-        charset = charset.toLowerCase();
-        if (charset.equals("cp932"))
-            return "shift-jis";
-        else if (charset.equals("koi8-u"))
-            return "koi8-r";
+        while (part != null)
+        {
+            if (part instanceof Message)
+                return (Message)part;
 
-        return charset;
+            if (!(part instanceof BodyPart))
+                return null;
 
+            Multipart multipart = ((BodyPart)part).getParent();
+            if (multipart == null)
+                return null;
+
+            part = multipart.getParent();
+        }
+        return null;
     }
 
+    private static String fixupCharset(String charset, Message message) throws MessagingException
+    {
+        if (charset == null || "0".equals(charset))
+            charset = "US-ASCII";  // No encoding, so use us-ascii, which is the standard.
 
+        charset = charset.toLowerCase();
+        if (charset.equals("cp932"))
+            charset = "shift_jis";
+        else if (charset.equals("koi8-u"))
+            charset = "koi8-r";
+
+        if (charset.equals("shift_jis") || charset.equals("iso-2022-jp"))
+        {
+            String variant = getJisVariantFromMessage(message);
+            if (variant != null)
+                charset = "x-" + variant + "-" + charset + "-2007";
+        }
+        return charset;
+    }
+
+    private static String getJisVariantFromMessage(Message message) throws MessagingException
+    {
+        if (message == null)
+            return null;
+
+        // If a receiver is known to use a JIS variant, the sender transfers the message after converting the
+        // charset as a convention.
+        String receivedHeaders[] = message.getHeader("Received");
+        if (receivedHeaders == null)
+            receivedHeaders = new String[0];
+
+        for (String receivedHeader : receivedHeaders)
+        {
+            String address = getAddressFromReceivedHeader(receivedHeader);
+            if (address == null)
+                continue;
+            String variant = getJisVariantFromAddress(address);
+            if (variant != null)
+                return variant;
+        }
+
+        // If a receiver is not known to use any JIS variants, the sender transfers the message without converting
+        // the charset.
+        Address addresses[] = message.getFrom();
+        if (addresses == null || addresses.length == 0)
+            return null;
+
+        return getJisVariantFromAddress(addresses[0].getAddress());
+    }
+
+    private static String getAddressFromReceivedHeader(String receivedHeader)
+    {
+        // Not implemented yet!  Extract an address from the FOR clause of the given Received header.
+        return null;
+    }
+
+    private static String getJisVariantFromAddress(String address)
+    {
+        if (isInDomain(address, "docomo.ne.jp") || isInDomain(address, "dwmail.jp") ||
+            isInDomain(address, "pdx.ne.jp") || isInDomain(address, "willcom.com"))
+            return "docomo";
+        else if (isInDomain(address, "softbank.ne.jp") || isInDomain(address, "vodafone.ne.jp") ||
+                 isInDomain(address, "disney.ne.jp") || isInDomain(address, "vertuclub.ne.jp"))
+            return "softbank";
+        else if (isInDomain(address, "ezweb.ne.jp") || isInDomain(address, "ido.ne.jp"))
+            return "kddi";
+        return null;
+    }
+
+    private static boolean isInDomain(String address, String domain)
+    {
+        int index = address.length() - domain.length() - 1;
+        if (index < 0)
+            return false;
+
+        char c = address.charAt(index);
+        if (c != '@' && c != '.')
+            return false;
+
+        return address.endsWith(domain);
+    }
+
+    private static String readToString(InputStream in, String charset) throws IOException
+    {
+        // iso-2022-jp variants are supported by no versions as of Dec 2010.
+        if (charset.length() > 19 && charset.startsWith("x-") &&
+            charset.endsWith("-iso-2022-jp-2007") && !Charset.isSupported(charset))
+        {
+            in = new Iso2022JpToShiftJisInputStream(in);
+            charset = "x-" + charset.substring(2, charset.length() - 17) + "-shift_jis-2007";
+        }
+
+        // shift_jis variants are supported by Eclair and later.
+        if (charset.length() > 17 && charset.startsWith("x-") &&
+            charset.endsWith("-shift_jis-2007") && !Charset.isSupported(charset))
+        {
+            charset = "shift_jis";
+        }
+
+        /*
+         * See if there is conversion from the MIME charset to the Java one.
+         */
+        if (!Charset.isSupported(charset))
+        {
+            Log.e(K9.LOG_TAG, "I don't know how to deal with the charset " + charset +
+                  ". Falling back to US-ASCII");
+            charset = "US-ASCII";
+        }
+
+        /*
+         * Convert and return as new String
+         */
+        return IOUtils.toString(in, charset);
+    }
 }
