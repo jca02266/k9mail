@@ -3251,10 +3251,10 @@ public class LocalStore extends Store implements Serializable
         public String convertEmoji2Img(String html)
         {
             StringBuilder buff = new StringBuilder(html.length() + 512);
-
-            for (int i = 0; i < html.length(); i = html.offsetByCodePoints(i, 1))
+            int codePoint;
+            for (int i = 0; i < html.length(); i += Character.charCount(codePoint))
             {
-                int codePoint = html.codePointAt(i);
+                codePoint = html.codePointAt(i);
                 String emoji = getEmojiForCodePoint(codePoint);
                 if (emoji != null)
                     buff.append("<img src=\"file:///android_asset/emoticons/" + emoji + ".gif\" alt=\"" + emoji +
