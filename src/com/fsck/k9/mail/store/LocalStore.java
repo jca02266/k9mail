@@ -16,11 +16,13 @@ import java.util.UUID;
 import java.util.regex.Matcher;
 
 import org.apache.commons.io.IOUtils;
+import org.apache.james.mime4j.codec.EncoderUtil;
 
 import android.app.Application;
 import android.content.ContentValues;
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.content.res.AssetManager;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteException;
@@ -1896,7 +1898,7 @@ public class LocalStore extends Store implements Serializable
                                                                        name,
                                                                        size));
 
-                                            bp.setHeader(MimeHeader.HEADER_CONTENT_ID, contentId);
+                                            bp.setHeader(MimeHeader.HEADER_CONTENT_ID, "<" + contentId + ">");
                                             /*
                                              * HEADER_ANDROID_ATTACHMENT_STORE_DATA is a custom header we add to that
                                              * we can later pull the attachment from the remote store if neccesary.
@@ -2362,7 +2364,42 @@ public class LocalStore extends Store implements Serializable
                                 }
 
                                 String text = sbText.toString();
-                                String html = markupContent(text, sbHtml.toString());
+                                String html;
+                                if (mName.equals(mAccount.getOutboxFolderName())) {
+                                    // sending message
+                                    HashMap<String,String> cidMap = replaceEmojiToDecome(text, sbHtml);
+                                    html = sbHtml.toString();
+
+                                    for (Map.Entry<String,String> cidSet: cidMap.entrySet()) {
+                                        String cid = cidSet.getKey();
+                                        String emoji = cidSet.getValue();
+                                        String name = emoji + ".gif";
+                                        String contentType = "image/gif";
+                                        Uri uri = Uri.parse("content://android_asset/emoticons/" + emoji + ".gif");
+
+                                        MimeBodyPart bp = new MimeBodyPart(
+                                                new LocalStore.LocalAttachmentBody(uri, mApplication));
+
+                                        /*
+                                         * <IMG src="cid:01@101210.103540@_____SH02C@docomo.ne.jp">
+                                         *
+                                         * Content-Type: image/gif; name="70P700451_DCE.gif"
+                                         * Content-Transfer-Encoding: base64
+                                         * Content-ID: <01@101210.103540@_____SH02C@docomo.ne.jp>
+                                         */
+                                        bp.addHeader(MimeHeader.HEADER_CONTENT_TYPE, String.format("%s;\n name=\"%s\"",
+                                                contentType,
+                                                EncoderUtil.encodeIfNecessary(name,
+                                                        EncoderUtil.Usage.WORD_ENTITY, 7)));
+                                        bp.addHeader(MimeHeader.HEADER_CONTENT_TRANSFER_ENCODING, "base64");
+                                        bp.addHeader(MimeHeader.HEADER_CONTENT_ID, "<" + cid + ">");
+
+                                        attachments.add(bp);
+                                    }
+                                }
+                                else {
+                                    html = markupContent(text, sbHtml.toString());
+                                }
                                 String preview = calculateContentPreview(text);
                                 // If we couldn't generate a reasonable preview from the text part, try doing it with the HTML part.
                                 if (preview == null || preview.length() == 0)
@@ -2738,8 +2775,11 @@ public class LocalStore extends Store implements Serializable
                             }
 
                             /* The message has attachment with Content-ID */
-                            if (contentId != null && contentUri != null)
+                            if (!(mName.equals(mAccount.getOutboxFolderName()) ||
+                                  mName.equals(mAccount.getDraftsFolderName())) &&
+                                contentId != null && contentUri != null)
                             {
+                                // change <img src="cid:xxx"> into attachment URI to display the image
                                 Cursor cursor = db.query("messages", new String[]
                                                   { "html_content" }, "id = ?", new String[]
                                                   { Long.toString(messageId) }, null, null, null);
@@ -3126,6 +3166,53 @@ public class LocalStore extends Store implements Serializable
 
         }
 
+        public HashMap<String,String> replaceEmojiToDecome(String text, StringBuffer sbHtml) {
+            HashMap<String,String> cidMap = new HashMap<String,String>();
+
+            int i, cp;
+
+            for (i = 0; i < text.length(); i += Character.charCount(cp)) {
+                cp = text.codePointAt(i);
+
+                String emoji = getEmojiForCodePoint(cp);
+
+                if (emoji != null) {
+                    break;
+                }
+            }
+
+            if (i == text.length())
+                return cidMap; // not found emoji
+
+            String html = htmlifyString(text);
+
+            for (i = 0; i < html.length(); i += Character.charCount(cp)) {
+                cp = html.codePointAt(i);
+
+                String emoji = getEmojiForCodePoint(cp);
+
+                if (emoji != null) {
+                    String cid = cidMap.get(emoji);
+                    if (cid == null) {
+                        StringBuffer sb = new StringBuffer();
+                        for (int j = 0; j < 30; j++)
+                        {
+                            sb.append(Integer.toString((int)(Math.random() * 35), 36));
+                        }
+                        cid = sb.toString();
+                        cidMap.put(cid, emoji);
+                    }
+
+                    sbHtml.append("<img src=\"cid:" + cid + "\">");
+                }
+                else {
+                    sbHtml.appendCodePoint(cp);
+                }
+            }
+
+            return cidMap;
+        }
+
         public String markupContent(String text, String html)
         {
             if (text.length() > 0 && html.length() == 0)
@@ -3271,6 +3358,260 @@ public class LocalStore extends Store implements Serializable
             // XXX: This doesn't cover all the characters.  More emoticons are wanted.
             switch (codePoint)
             {
+                // for docomo
+            case 0xE6F9: return "kissmark";
+            case 0xE729: return "wink";
+            case 0xE6D2: return "info02";
+            case 0xE753: return "smile";
+            case 0xE68D: return "heart";
+            case 0xE6A5: return "downwardleft";
+            case 0xE6AD: return "pouch";
+            case 0xE6D4: return "by-d.gif";
+            case 0xE6D7: return "free";
+            case 0xE6E8: return "seven";
+            case 0xE74E: return "snail";
+            case 0xE658: return "basketball";
+            case 0xE65A: return "pocketbell";
+            case 0xE6E3: return "two";
+            case 0xE74A: return "cake";
+            case 0xE6D0: return "faxto";
+            case 0xE661: return "ship";
+            case 0xE64B: return "virgo";
+            case 0xE67E: return "ticket";
+            case 0xE6D6: return "yen";
+            case 0xE6E0: return "sharp";
+            case 0xE6FE: return "bomb";
+            case 0xE6E1: return "mobaq";
+            case 0xE70A: return "sign05";
+            case 0xE667: return "bank";
+            case 0xE731: return "copyright";
+            case 0xE678: return "upwardright";
+            case 0xE694: return "scissors";
+            case 0xE682: return "bag";
+            case 0xE64D: return "scorpius";
+            case 0xE6D9: return "key";
+            case 0xE734: return "secret";
+            case 0xE74F: return "chick";
+            case 0xE691: return "eye";
+            case 0xE70B: return "ok";
+            case 0xE714: return "door";
+            case 0xE64F: return "capricornus";
+            case 0xE674: return "boutique";
+            case 0xE726: return "lovely";
+            case 0xE68F: return "diamond";
+            case 0xE69B: return "wheelchair";
+            case 0xE747: return "maple";
+            case 0xE64C: return "libra";
+            case 0xE647: return "taurus";
+            case 0xE645: return "sprinkle";
+            case 0xE6FC: return "annoy";
+            case 0xE6E6: return "five";
+            case 0xE676: return "karaoke";
+            case 0xE69D: return "moon1";
+            case 0xE709: return "sign04";
+            case 0xE72A: return "happy02";
+            case 0xE669: return "hotel";
+            case 0xE71B: return "ring";
+            case 0xE644: return "mist";
+            case 0xE73B: return "full";
+            case 0xE683: return "book";
+            case 0xE707: return "sweat02";
+            case 0xE716: return "pc";
+            case 0xE671: return "bar";
+            case 0xE72B: return "bearing";
+            case 0xE65C: return "subway";
+            case 0xE725: return "gawk";
+            case 0xE745: return "apple";
+            case 0xE65F: return "rvcar";
+            case 0xE664: return "building";
+            case 0xE737: return "danger";
+            case 0xE702: return "sign01";
+            case 0xE6EC: return "heart01";
+            case 0xE660: return "bus";
+            case 0xE72D: return "crying";
+            case 0xE652: return "sports";
+            case 0xE6B8: return "on";
+            case 0xE73C: return "leftright";
+            case 0xE6BA: return "clock";
+            case 0xE6F0: return "happy01";
+            case 0xE701: return "sleepy";
+            case 0xE63E: return "sun";
+            case 0xE67D: return "event";
+            case 0xE689: return "memo";
+            case 0xE68B: return "game";
+            case 0xE718: return "wrench";
+            case 0xE741: return "clover";
+            case 0xE693: return "rock";
+            case 0xE6F6: return "note";
+            case 0xE67A: return "music";
+            case 0xE743: return "tulip";
+            case 0xE656: return "soccer";
+            case 0xE69C: return "newmoon";
+            case 0xE73E: return "school";
+            case 0xE750: return "penguin";
+            case 0xE696: return "downwardright";
+            case 0xE6CE: return "phoneto";
+            case 0xE728: return "bleah";
+            case 0xE662: return "airplane";
+            case 0xE74C: return "noodle";
+            case 0xE704: return "sign03";
+            case 0xE68E: return "spade";
+            case 0xE698: return "foot";
+            case 0xE712: return "snowboard";
+            case 0xE684: return "ribbon";
+            case 0xE6DA: return "enter";
+            case 0xE6EA: return "nine";
+            case 0xE722: return "coldsweats01";
+            case 0xE6F7: return "spa";
+            case 0xE710: return "rouge";
+            case 0xE73F: return "wave";
+            case 0xE686: return "birthday";
+            case 0xE721: return "confident";
+            case 0xE6FF: return "notes";
+            case 0xE724: return "pout";
+            case 0xE6A4: return "xmas";
+            case 0xE6FB: return "flair";
+            case 0xE71D: return "bicycle";
+            case 0xE6DC: return "search";
+            case 0xE757: return "shock";
+            case 0xE680: return "nosmoking";
+            case 0xE66D: return "signaler";
+            case 0xE66A: return "24hours";
+            case 0xE6F4: return "wobbly";
+            case 0xE641: return "snow";
+            case 0xE6AE: return "pen";
+            case 0xE70D: return "appli02";
+            case 0xE732: return "tm";
+            case 0xE755: return "pig";
+            case 0xE648: return "gemini";
+            case 0xE6DE: return "flag";
+            case 0xE6A1: return "dog";
+            case 0xE6EF: return "heart04";
+            case 0xE643: return "typhoon";
+            case 0xE65B: return "train";
+            case 0xE746: return "bud";
+            case 0xE653: return "baseball";
+            case 0xE6B2: return "chair";
+            case 0xE64A: return "leo";
+            case 0xE6E7: return "six";
+            case 0xE6E4: return "three";
+            case 0xE6DF: return "freedial";
+            case 0xE744: return "banana";
+            case 0xE6DB: return "clear";
+            case 0xE6AC: return "slate";
+            case 0xE666: return "hospital";
+            case 0xE663: return "house";
+            case 0xE695: return "paper";
+            case 0xE67F: return "smoking";
+            case 0xE65D: return "bullettrain";
+            case 0xE6B1: return "shadow";
+            case 0xE670: return "cafe";
+            case 0xE654: return "golf";
+            case 0xE708: return "dash";
+            case 0xE748: return "cherryblossom";
+            case 0xE6F1: return "angry";
+            case 0xE736: return "r-mark";
+            case 0xE6A2: return "cat";
+            case 0xE6D1: return "info01";
+            case 0xE687: return "telephone";
+            case 0xE68C: return "cd";
+            case 0xE70E: return "t-shirt";
+            case 0xE733: return "run";
+            case 0xE679: return "carouselpony";
+            case 0xE646: return "aries";
+            case 0xE690: return "club";
+            case 0xE64E: return "sagittarius";
+            case 0xE6F5: return "up";
+            case 0xE720: return "think";
+            case 0xE6E2: return "one";
+            case 0xE6D8: return "id";
+            case 0xE675: return "hairsalon";
+            case 0xE6B7: return "soon";
+            case 0xE717: return "loveletter";
+            case 0xE673: return "fastfood";
+            case 0xE719: return "pencil";
+            case 0xE697: return "upwardleft";
+            case 0xE730: return "clip";
+            case 0xE6ED: return "heart02";
+            case 0xE69A: return "eyeglass";
+            case 0xE65E: return "car";
+            case 0xE742: return "cherry";
+            case 0xE71C: return "sandclock";
+            case 0xE735: return "recycle";
+            case 0xE752: return "delicious";
+            case 0xE69E: return "moon2";
+            case 0xE68A: return "tv";
+            case 0xE706: return "sweat01";
+            case 0xE738: return "ban";
+            case 0xE672: return "beer";
+            case 0xE640: return "rain";
+            case 0xE69F: return "moon3";
+            case 0xE657: return "ski";
+            case 0xE70C: return "appli01";
+            case 0xE6E5: return "four";
+            case 0xE699: return "shoe";
+            case 0xE63F: return "cloud";
+            case 0xE72F: return "ng";
+            case 0xE6A3: return "yacht";
+            case 0xE73A: return "pass";
+            case 0xE67C: return "drama";
+            case 0xE727: return "good";
+            case 0xE6EB: return "zero";
+            case 0xE72C: return "catface";
+            case 0xE6D5: return "d-point";
+            case 0xE6F2: return "despair";
+            case 0xE700: return "down";
+            case 0xE655: return "tennis";
+            case 0xE703: return "sign02";
+            case 0xE711: return "denim";
+            case 0xE705: return "impact";
+            case 0xE642: return "thunder";
+            case 0xE66C: return "parking";
+            case 0xE6F3: return "sad";
+            case 0xE71E: return "japanesetea";
+            case 0xE6FD: return "punch";
+            case 0xE73D: return "updown";
+            case 0xE66F: return "restaurant";
+            case 0xE66E: return "toilet";
+            case 0xE739: return "empty";
+            case 0xE723: return "coldsweats02";
+            case 0xE6B9: return "end";
+            case 0xE67B: return "art";
+            case 0xE72E: return "weep";
+            case 0xE715: return "dollar";
+            case 0xE6CF: return "mailto";
+            case 0xE6F8: return "cute";
+            case 0xE6DD: return "new";
+            case 0xE651: return "pisces";
+            case 0xE756: return "wine";
+            case 0xE649: return "cancer";
+            case 0xE650: return "aquarius";
+            case 0xE740: return "fuji";
+            case 0xE681: return "camera";
+            case 0xE71F: return "watch";
+            case 0xE6EE: return "heart03";
+            case 0xE71A: return "crown";
+            case 0xE6B3: return "night";
+            case 0xE66B: return "gasstation";
+            case 0xE692: return "ear";
+            case 0xE685: return "present";
+            case 0xE6E9: return "eight";
+            case 0xE70F: return "moneybag";
+            case 0xE749: return "riceball";
+            case 0xE6A0: return "fullmoon";
+            case 0xE74D: return "bread";
+            case 0xE665: return "postoffice";
+            case 0xE677: return "movie";
+            case 0xE668: return "atm";
+            case 0xE688: return "mobilephone";
+            case 0xE6FA: return "shine";
+            case 0xE713: return "bell";
+            case 0xE74B: return "bottle";
+            case 0xE754: return "horse";
+            case 0xE751: return "fish";
+            case 0xE659: return "motorsports";
+            case 0xE6D3: return "mail";
+
             case 0xFE000: return "sun";
             case 0xFE001: return "cloud";
             case 0xFE005: return "typhoon";
@@ -4188,7 +4529,15 @@ public class LocalStore extends Store implements Serializable
         {
             try
             {
-                return mApplication.getContentResolver().openInputStream(mUri);
+                if ("content".equals(mUri.getScheme()) && "android_asset".equals(mUri.getHost())) {
+                    AssetManager as = mApplication.getResources().getAssets();
+                    String path = mUri.getPath().substring(1); // to be relative path.
+
+                    return as.open(path);
+                }
+                else {
+                    return mApplication.getContentResolver().openInputStream(mUri);
+                }
             }
             catch (FileNotFoundException fnfe)
             {
@@ -4196,6 +4545,9 @@ public class LocalStore extends Store implements Serializable
                  * Since it's completely normal for us to try to serve up attachments that
                  * have been blown away, we just return an empty stream.
                  */
+                return new ByteArrayInputStream(EMPTY_BYTE_ARRAY);
+            }
+            catch (IOException ex) {
                 return new ByteArrayInputStream(EMPTY_BYTE_ARRAY);
             }
         }
