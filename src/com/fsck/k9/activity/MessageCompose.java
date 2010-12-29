@@ -382,6 +382,12 @@ public class MessageCompose extends K9Activity implements OnClickListener, OnFoc
         mQuotedTextDelete = (ImageButton)findViewById(R.id.quoted_text_delete);
         mQuotedText = (EditText)findViewById(R.id.quoted_text);
 
+        // for Japanese Emoji
+        Bundle bundle = mMessageContentView.getInputExtras(true);
+        if (bundle != null) {
+            bundle.putBoolean("allowEmoji", true);
+        }
+
         TextWatcher watcher = new TextWatcher()
         {
             public void beforeTextChanged(CharSequence s, int start,
