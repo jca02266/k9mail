@@ -2655,24 +2655,16 @@ public class LocalStore extends Store implements Serializable
                             final File attachmentDirectory = StorageManager.getInstance(mApplication).getAttachmentDirectory(uUid, database.getStorageProviderId());
                             if (attachment.getBody() != null)
                             {
-                                Body body = attachment.getBody();
-                                if (body instanceof LocalAttachmentBody)
-                                {
-                                    contentUri = ((LocalAttachmentBody) body).getContentUri();
-                                }
-                                else
-                                {
-                                    /*
-                                     * If the attachment has a body we're expected to save it into the local store
-                                     * so we copy the data into a cached attachment file.
-                                     */
-                                    InputStream in = attachment.getBody().getInputStream();
-                                    tempAttachmentFile = File.createTempFile("att", null, attachmentDirectory);
-                                    FileOutputStream out = new FileOutputStream(tempAttachmentFile);
-                                    size = IOUtils.copy(in, out);
-                                    in.close();
-                                    out.close();
-                                }
+                                /*
+                                 * If the attachment has a body we're expected to save it into the local store
+                                 * so we copy the data into a cached attachment file.
+                                 */
+                                InputStream in = attachment.getBody().getInputStream();
+                                tempAttachmentFile = File.createTempFile("att", null, attachmentDirectory);
+                                FileOutputStream out = new FileOutputStream(tempAttachmentFile);
+                                size = IOUtils.copy(in, out);
+                                in.close();
+                                out.close();
                             }
 
                             if (size == -1)
