@@ -2368,33 +2368,40 @@ public class LocalStore extends Store implements Serializable
                                 if (mName.equals(mAccount.getOutboxFolderName())) {
                                     // sending message
                                     HashMap<String,String> cidMap = replaceEmojiToDecome(text, sbHtml);
-                                    html = sbHtml.toString();
 
-                                    for (Map.Entry<String,String> cidSet: cidMap.entrySet()) {
-                                        String cid = cidSet.getKey();
-                                        String emoji = cidSet.getValue();
-                                        String name = emoji + ".gif";
-                                        String contentType = "image/gif";
-                                        Uri uri = Uri.parse("content://android_asset/emoticons/" + emoji + ".gif");
+                                    if (cidMap.size() == 0) {
+                                        html = markupContent(text, "");
+                                    }
+                                    else {
+                                        html = sbHtml.toString();
+                                        text = "";
 
-                                        MimeBodyPart bp = new MimeBodyPart(
-                                                new LocalStore.LocalAttachmentBody(uri, mApplication));
+                                        for (Map.Entry<String,String> cidSet: cidMap.entrySet()) {
+                                            String cid = cidSet.getKey();
+                                            String emoji = cidSet.getValue();
+                                            String name = emoji + ".gif";
+                                            String contentType = "image/gif";
+                                            Uri uri = Uri.parse("content://android_asset/emoticons/" + emoji + ".gif");
 
-                                        /*
-                                         * <IMG src="cid:01@101210.103540@_____SH02C@docomo.ne.jp">
-                                         *
-                                         * Content-Type: image/gif; name="70P700451_DCE.gif"
-                                         * Content-Transfer-Encoding: base64
-                                         * Content-ID: <01@101210.103540@_____SH02C@docomo.ne.jp>
-                                         */
-                                        bp.addHeader(MimeHeader.HEADER_CONTENT_TYPE, String.format("%s;\n name=\"%s\"",
-                                                contentType,
-                                                EncoderUtil.encodeIfNecessary(name,
-                                                        EncoderUtil.Usage.WORD_ENTITY, 7)));
-                                        bp.addHeader(MimeHeader.HEADER_CONTENT_TRANSFER_ENCODING, "base64");
-                                        bp.addHeader(MimeHeader.HEADER_CONTENT_ID, "<" + cid + ">");
+                                            MimeBodyPart bp = new MimeBodyPart(
+                                                    new LocalStore.LocalAttachmentBody(uri, mApplication));
 
-                                        attachments.add(bp);
+                                            /*
+                                             * <IMG src="cid:01@101210.103540@_____SH02C@docomo.ne.jp">
+                                             *
+                                             * Content-Type: image/gif; name="70P700451_DCE.gif"
+                                             * Content-Transfer-Encoding: base64
+                                             * Content-ID: <01@101210.103540@_____SH02C@docomo.ne.jp>
+                                             */
+                                            bp.addHeader(MimeHeader.HEADER_CONTENT_TYPE, String.format("%s;\n name=\"%s\"",
+                                                    contentType,
+                                                    EncoderUtil.encodeIfNecessary(name,
+                                                            EncoderUtil.Usage.WORD_ENTITY, 7)));
+                                            bp.addHeader(MimeHeader.HEADER_CONTENT_TRANSFER_ENCODING, "base64");
+                                            bp.addHeader(MimeHeader.HEADER_CONTENT_ID, "<" + cid + ">");
+
+                                            attachments.add(bp);
+                                        }
                                     }
                                 }
                                 else {
