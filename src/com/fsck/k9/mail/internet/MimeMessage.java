@@ -332,14 +332,14 @@ public class MimeMessage extends Message
         }
         if (mMessageId == null) //  even after checking the header
         {
-            setMessageId(generateMessageId());
+            setMessageId("<" + generateMessageId() + ">");
         }
         return mMessageId;
     }
 
-    private String generateMessageId()
+    public static String generateMessageId()
     {
-        return "<"+UUID.randomUUID().toString()+"@email.android.com>";
+        return UUID.randomUUID().toString()+"@email.android.com";
     }
 
     public void setMessageId(String messageId) throws UnavailableStorageException

@@ -3201,12 +3201,7 @@ public class LocalStore extends Store implements Serializable
                 if (emoji != null) {
                     String cid = cidMap.get(emoji);
                     if (cid == null) {
-                        StringBuffer sb = new StringBuffer();
-                        for (int j = 0; j < 30; j++)
-                        {
-                            sb.append(Integer.toString((int)(Math.random() * 35), 36));
-                        }
-                        cid = sb.toString();
+                        cid = MimeMessage.generateMessageId();
                         cidMap.put(cid, emoji);
                     }
 
